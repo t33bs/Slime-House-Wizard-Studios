@@ -17,6 +17,7 @@ from shws_wizard.studio.update_manager import check_update, download_verified_in
 from shws_wizard.studio.resource_checks import bundled_resource_report
 from shws_wizard.studio.canvas_navigation import geometry as canvas_geometry, zoom_at
 from shws_wizard.studio.viewport_handles import visible_handle_position
+from shws_wizard.studio.asset_hit_test import choose_drag_layer
 from shws_wizard.studio.timeline_tools import timeline_summary, onion_composite
 from shws_wizard.studio.pet_suite_model import PetSuiteModel
 from shws_wizard.studio.edit_history import EditHistory
@@ -408,6 +409,30 @@ class DragCanvas(QLabel):
     def reset_view(self):
         self.zoom=1.0;self.pan_x=0.0;self.pan_y=0.0
         self.update();self.view_changed.emit()
+    def _part_pixel_hit(self, index, x, y):
+        """Hit the exact alpha rendered for this asset, not its padded PNG bounds.
+
+        The owning Suite supplies a model-backed evaluator, including joint
+        rotation and parent attachments. The self-contained fallback keeps
+        DragCanvas usable by lightweight standalone Qt tests.
+        """
+        target=getattr(self, 'model_pixel_hit', None)
+        if target is not None:
+            return bool(target(index, x, y))
+        part=self.parts[index]
+        image=part['image'].convert('RGBA')
+        canvas=Image.new('RGBA', self._image_size)
+        px,py=int(part['x']),int(part['y'])
+        canvas.paste(image,(px,py))
+        angle=float(self.angles.get(index,0))
+        if angle % 360:
+            ax,ay=self.anchors.get(index,[image.width//2,image.height//2])
+            canvas=canvas.rotate(angle,Image.Resampling.NEAREST,
+                                 center=(px+ax,py+ay),expand=False)
+        xi,yi=int(x),int(y)
+        return (0 <= xi < canvas.width and 0 <= yi < canvas.height and
+                canvas.getpixel((xi,yi))[3] > 0)
+
     def mousePressEvent(self,event):
         if self.cleaner_active and event.button()==Qt.MouseButton.LeftButton and not (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
             x,y=self._pixel(event.position())
@@ -459,22 +484,17 @@ class DragCanvas(QLabel):
                 right=p['x']+p['image'].width;bottom=p['y']+p['image'].height
                 if abs(x-right)<=4 and abs(y-bottom)<=4:self._action='resize'
             if not self._action:
-                for i in reversed(range(len(self.parts))):
-                    p=self.parts[i]
-                    if not p.get('visible',True):
-                        continue
-                    # While an unconfirmed Slimer layer exists, only THAT
-                    # layer can be dragged. Never switch source mid-transaction.
-                    if (getattr(self, 'slimer_staged_part', None) is not None
-                            and p is not self.slimer_staged_part):
-                        continue
-                    if getattr(self, 'slimer_staged_part', None) is p:
-                        _, _, bounds = self._selected_rotation_geometry(i)
-                        inside = bounds[0] <= x < bounds[2] and bounds[1] <= y < bounds[3]
-                    else:
-                        inside = p['x'] <= x < p['x'] + p['image'].width and p['y'] <= y < p['y'] + p['image'].height
-                    if inside:
-                        self.picked.emit(i);self._action='move';break
+                # Slimer layers have full-canvas transparent PNGs; their image
+                # rectangle must NOT claim clicks on transparent pixels. Give
+                # the asset explicitly selected in the library priority if its
+                # rendered artwork is under this click, even beneath later
+                # Slimer layers. A staged move remains the sole editable layer.
+                hit = choose_drag_layer(
+                    self.parts, self.selected, x, y, self._part_pixel_hit,
+                    staged=getattr(self, 'slimer_staged_part', None))
+                if hit is not None:
+                    self.picked.emit(hit)
+                    self._action='move'
             if not self._action:self._last=None
         super().mousePressEvent(event)
     def mouseMoveEvent(self,event):
@@ -804,7 +824,7 @@ class Suite(QMainWindow):
         self.buddy_toggle.toggled.connect(lambda enabled:self.settings.setValue('slime_buddy_enabled',enabled))
         self.refresh_buddy()
         canvas_title=QLabel('✦ BUILD YOUR POSE  •  Drag parts on the canvas');canvas_title.setObjectName('pixelCanvasHeading');canvas_title.setProperty('uiRole','sectionTitle');ml.addWidget(canvas_title)
-        self.canvas=DragCanvas();self.canvas.handle_layer_picker.currentIndexChanged.connect(self.assets.setCurrentRow);self.canvas.handle_mode_picker.currentIndexChanged.connect(lambda _index: self._refresh_active_layer_label());self.canvas.cleaner_stroke.connect(self.cleaner_paint);self.canvas.cleaner_stroke_start.connect(self.cleaner_start_stroke);self.canvas.slimer_stroke.connect(self.slimer_paint);self.canvas.slimer_stroke_start.connect(self.slimer_start_stroke);self.canvas.slimer_drag.connect(self.slimer_drag_transform);self.canvas.slimer_drag_start.connect(self.slimer_start_transform);self.canvas.slimer_drag_end.connect(self.slimer_end_transform);self.canvas.moved.connect(self.drag_part);self.canvas.resized.connect(self.resize_drag);self.canvas.picked.connect(self.assets.setCurrentRow);self.canvas.anchor_chosen.connect(self.place_anchor);self.canvas.angle_chosen.connect(self.turn_part);self.canvas.setMinimumHeight(205);self.canvas.setObjectName('pixelMainCanvas');self.canvas.setStyleSheet('background:#161c38;border:2px solid #6986c7;border-radius:5px;');ml.addWidget(self.canvas,1);self.canvas.setToolTip('Expand Transform handles on the canvas to select a layer and one X, Y, Rotation, or Resize handle. Edit Selection enables or disables the chosen handle.')
+        self.canvas=DragCanvas();self.canvas.model_pixel_hit=self._canvas_model_pixel_hit;self.canvas.handle_layer_picker.currentIndexChanged.connect(self.assets.setCurrentRow);self.canvas.handle_mode_picker.currentIndexChanged.connect(lambda _index: self._refresh_active_layer_label());self.canvas.cleaner_stroke.connect(self.cleaner_paint);self.canvas.cleaner_stroke_start.connect(self.cleaner_start_stroke);self.canvas.slimer_stroke.connect(self.slimer_paint);self.canvas.slimer_stroke_start.connect(self.slimer_start_stroke);self.canvas.slimer_drag.connect(self.slimer_drag_transform);self.canvas.slimer_drag_start.connect(self.slimer_start_transform);self.canvas.slimer_drag_end.connect(self.slimer_end_transform);self.canvas.moved.connect(self.drag_part);self.canvas.resized.connect(self.resize_drag);self.canvas.picked.connect(self.assets.setCurrentRow);self.canvas.anchor_chosen.connect(self.place_anchor);self.canvas.angle_chosen.connect(self.turn_part);self.canvas.setMinimumHeight(205);self.canvas.setObjectName('pixelMainCanvas');self.canvas.setStyleSheet('background:#161c38;border:2px solid #6986c7;border-radius:5px;');ml.addWidget(self.canvas,1);self.canvas.setToolTip('Expand Transform handles on the canvas to select a layer and one X, Y, Rotation, or Resize handle. Edit Selection enables or disables the chosen handle.')
         nav=QHBoxLayout();ml.addLayout(nav)
         canvas_nav_title=QLabel('Canvas view:');canvas_nav_title.setObjectName('pixelCanvasNavLabel');nav.addWidget(canvas_nav_title)
         fit=QPushButton('Fit to Canvas');fit.setObjectName('pixelCanvasFitButton');fit.setToolTip('Show the whole creature again (does not resize your artwork).');fit.clicked.connect(self.canvas.reset_view);nav.addWidget(fit)
@@ -3148,6 +3168,20 @@ class Suite(QMainWindow):
             self.status.setText('Asset imported. Slimer highlight refreshed for the new artwork.')
         self.refresh()
         return bool(paths)
+    def _canvas_model_pixel_hit(self,index,x,y):
+        """Match the exact per-layer RGBA render, including rotations/rig pose.
+
+        Hit-testing is read-only and does not create undo entries, change pose
+        ownership, or perform any Slimer source erase.
+        """
+        xi,yi=int(x),int(y)
+        width,height=self.model.size
+        if not (0 <= index < len(self.model.parts) and
+                0 <= xi < width and 0 <= yi < height):
+            return False
+        state=self.model.resolved_pose()[index]
+        return self.model.render_part(index,state).getpixel((xi,yi))[3] > 0
+
     def select_asset(self,i):
         pending=getattr(self,'_slimer_pending_part',None)
         if pending is not None:

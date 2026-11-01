@@ -32,9 +32,9 @@ This source ZIP is meant to be uploaded as the contents of a **new independent G
 
 1. Create the new `SLIME-HOUSE-WIZARD-STUDIOS` repository.
 2. Extract this ZIP into a **fresh folder**, then commit and push the folder's *contents*. Do not upload the ZIP itself and do not overwrite the old repositories.
-3. Open GitHub **Actions → SHWS Build 1 - Windows portable and optional installer**.
+3. Open GitHub **Actions → SHWS Build 1.4 - Windows portable and optional installer**.
 4. Wait for Windows test/smoke validation. **A green run is required** before sharing an EXE.
-5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build1-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build1-Installer-Windows** from the successful run's Artifacts.
+5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build14-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build14-Installer-Windows** from the successful run's Artifacts.
 
 The portable ZIP runs without installation once extracted. The optional installer creates Start Menu shortcuts and an optional desktop shortcut. **Uninstall removes app files and shortcuts, not saved user projects in home directories.**
 
@@ -63,3 +63,16 @@ No automatically published GitHub Release, no repository creation, and no remote
 The supplied SHS source snapshot includes an MIT `LICENSE` file. The supplied Slime Wizard source snapshot has no `LICENSE` file at repository root. This integration candidate retains the original SHS license within `baseline_sources/SHS/` and **does not automatically assign a license to the combined project**. Before making the new repo public, confirm the rights and license terms you intend for the Wizard code and the unified product.
 
 The packaged EXE and installer may be unsigned, depending on the GitHub workflow configuration; Windows SmartScreen can show warnings for unsigned downloads.
+
+## Build 1.4 Slimer layer reselection fix
+
+When there are two or more confirmed Slimer edit layers, choose the **first layer**
+in the Asset Library (or the canvas Transform layer dropdown), then click
+**Edit Selection** to show handles. Clicking its **visible pixels** will now
+move that selected layer, not silently jump back to the newest Slimer layer.
+Transparent pixels in a padded 128×128 Slimer PNG do not claim clicks.
+
+A pending **unconfirmed** Slimer move still locks editing to that staged layer
+until **Apply Move** or **Cancel**. This fix changes mouse selection only; it
+does not alter pixel extraction/erasure, timeline ownership, saving, or export.
+See `BUILD14_SLIMER_LAYER_RESELECTION_FIX.md` for test instructions.

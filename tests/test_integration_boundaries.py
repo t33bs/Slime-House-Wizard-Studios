@@ -53,6 +53,11 @@ def test_wizard_has_independent_module_namespace():
 def test_wizard_models_same_logic_as_original():
     for p in (ROOT/'shws_wizard'/'studio').rglob('*.py'):
         original=ROOT/'baseline_sources'/'SlimeWizard'/'studio'/p.relative_to(ROOT/'shws_wizard'/'studio')
+        if p.name == 'asset_hit_test.py':
+            # Build 1.4 adds one pure, isolated hit-test helper; all original
+            # Wizard model modules remain protected by their baseline checks.
+            assert not original.exists()
+            continue
         assert original.exists()
         expected=original.read_text(encoding='utf8').replace('from studio.','from shws_wizard.studio.').replace('import studio.','import shws_wizard.studio.')
         actual=p.read_text(encoding='utf8')
