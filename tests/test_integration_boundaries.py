@@ -13,11 +13,31 @@ def test_all_core_modules_compile():
         compile(p.read_bytes(),str(p),'exec')
 
 
-def test_shs_runtime_source_is_unchanged():
+def test_shs_source_changes_are_limited_to_approved_tools_and_saving():
+    # All other SHS modules remain byte-for-byte identical to the source baseline.
     for p in (ROOT/'studio').rglob('*.py'):
+        if p.name in ('app.py','chameleon_tool.py'):
+            continue
         original=ROOT/'baseline_sources'/'SHS'/p.relative_to(ROOT)
         assert original.is_file(),p
-        assert p.read_bytes()==original.read_bytes(),f'Unexpected SHS editor change: {p}'
+        assert p.read_bytes()==original.read_bytes(),f'Unexpected SHS module change: {p}'
+    original=(ROOT/'baseline_sources/SHS/studio/app.py').read_text(encoding='utf8')
+    runtime=(ROOT/'studio/app.py').read_text(encoding='utf8')
+    before,after=ast.parse(original),ast.parse(runtime)
+    def methods(tree):
+        return {n.name:n for n in ast.walk(tree) if isinstance(n,(ast.FunctionDef,ast.AsyncFunctionDef))}
+    b,a=methods(before),methods(after)
+    allowed={
+        'cursor_for_tool','__init__','mousePressEvent','chameleon_at',
+        'reset_chameleon_sample','save_project_as','load_project','new_project',
+        'setup_classic_menus','closeEvent','open_external_png','change_size',
+        'clear_canvas','restore_snapshot','install_beginner_helpers',
+    }
+    assert set(a)-set(b)=={'chameleon_at','reset_chameleon_sample','save_project_as'}
+    assert set(b)-set(a)==set()
+    for name in set(b)-allowed:
+        assert ast.dump(a[name],include_attributes=False)==ast.dump(b[name],include_attributes=False),name
+    assert 'from .chameleon_tool import sample_2x2, stamp_2x2' in runtime
 
 
 def test_wizard_has_independent_module_namespace():
@@ -35,7 +55,35 @@ def test_wizard_models_same_logic_as_original():
         original=ROOT/'baseline_sources'/'SlimeWizard'/'studio'/p.relative_to(ROOT/'shws_wizard'/'studio')
         assert original.exists()
         expected=original.read_text(encoding='utf8').replace('from studio.','from shws_wizard.studio.').replace('import studio.','import shws_wizard.studio.')
-        assert p.read_text(encoding='utf8')==expected, f'Wizard model logic diverged: {p}'
+        actual=p.read_text(encoding='utf8')
+        if p.name in ('pet_suite_model.py', 'project_validation.py'):
+            # Build1.1 explicitly adds unplaced-next-pose persistence to these
+            # two Wizard modules. Verify every OTHER existing function stays
+            # AST-identical to the approved standalone baseline.
+            before=ast.parse(expected)
+            after=ast.parse(actual)
+            def methods(tree):
+                found={}
+                for node in ast.walk(tree):
+                    if isinstance(node,(ast.FunctionDef,ast.AsyncFunctionDef)):
+                        found[node.name]=ast.dump(node,include_attributes=False)
+                return found
+            b,a=methods(before),methods(after)
+            allowed=({'__init__','save_project','load_project','content_fingerprint'}
+                     if p.name=='pet_suite_model.py' else {'validate_project_data'})
+            for name in b:
+                if name not in allowed:
+                    assert a.get(name)==b[name],f'Changed baseline Wizard method {p}:{name}'
+            assert set(a)==set(b),f'Unexpected method added/removed in {p}'
+        elif p.name == 'ui_pixel_theme.py':
+            # Build 1.3 adds a strictly append-only, scoped layout style.
+            # The Phase 99–103 approved QSS must remain byte-for-byte intact.
+            assert actual.startswith(expected), f'Existing Wizard styles changed: {p}'
+            extra=actual[len(expected):]
+            assert 'BUILD13_CANVAS_TIMELINE_QSS' in extra
+            assert extra.strip().endswith('PIXEL_THEME_QSS += BUILD13_CANVAS_TIMELINE_QSS')
+        else:
+            assert actual==expected, f'Wizard model logic diverged: {p}'
 
 
 def test_unified_host_contains_real_qt_editors_and_safe_handoff():

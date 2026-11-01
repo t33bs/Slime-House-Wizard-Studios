@@ -12,6 +12,7 @@ from .worksheet import NFTWorksheet
 from .bucket_fill import flood_fill
 from .safe_export import safe_export
 from .coordinates import screen_to_pixel
+from .chameleon_tool import sample_2x2, stamp_2x2
 from .core import Layer,Region,EFFECTS,composite,transformed,paint_pixel,frames_for,compose_timeline_frames,apply_motion_keyframes,paste_clip,compose_layer_motion_frames,interpolate_pose_anchors,export_apng,export_gif,export_sprite_sheet,generate_traits
 
 def resource_path(p):return Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parent.parent))/p
@@ -19,41 +20,12 @@ def resource_path(p):return Path(getattr(sys,'_MEIPASS',Path(__file__).resolve()
 def qimage(im):
     im=im.convert('RGBA');return QImage(im.tobytes(),im.width,im.height,QImage.Format.Format_RGBA8888).copy()
 
-# Tiny high-contrast tool cursors, drawn locally so the EXE needs no extra assets.
-# The small crosshair is the exact canvas interaction point (hotspot 5,5).
-CURSOR_SYMBOLS={
-    'Spray Can':'✺','Paint Bucket':'▨','Pencil':'✎','Eraser':'⌫','Mask Brush':'✦','Mask Eraser':'◇',
-    'Frame Pencil':'✎','Frame Eraser':'⌫','Eyedropper':'◉','Animation Region':'▭',
-}
-CURSOR_COLORS={
-    'Spray Can':'#b7f6d1','Paint Bucket':'#a8f5d0','Pencil':'#ffe3a1','Eraser':'#ffb6b6','Mask Brush':'#91e6bb',
-    'Mask Eraser':'#a7d3ff','Frame Pencil':'#f5cf9c',
-    'Frame Eraser':'#ffb9bd','Eyedropper':'#c4b5fd','Animation Region':'#d5bbef',
-}
-
+# Use native, visibly aligned Qt cursors instead of font-dependent
+# custom cursors that rendered as an empty square/bubble on some Windows PCs.
 def cursor_for_tool(tool):
-    if tool=='Move / Transform':
+    if tool == 'Move / Transform':
         return QCursor(Qt.CursorShape.OpenHandCursor)
-    if tool not in CURSOR_SYMBOLS:
-        return QCursor(Qt.CursorShape.CrossCursor)
-    pix=QPixmap(36,36)
-    pix.fill(Qt.GlobalColor.transparent)
-    painter=QPainter(pix)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing,False)
-    color=QColor(CURSOR_COLORS[tool])
-    # White/black crosshair remains readable on light or dark sprites.
-    painter.setPen(QPen(QColor('#10151b'),3))
-    painter.drawLine(5,2,5,9);painter.drawLine(2,5,9,5)
-    painter.setPen(QPen(color,1))
-    painter.drawLine(5,2,5,9);painter.drawLine(2,5,9,5)
-    painter.setBrush(QColor('#19232c'))
-    painter.setPen(QPen(color,2))
-    painter.drawRoundedRect(10,9,24,24,5,5)
-    painter.setFont(QFont('Segoe UI Symbol',15,QFont.Weight.Bold))
-    painter.setPen(QPen(color,1))
-    painter.drawText(QRect(11,10,22,22),Qt.AlignmentFlag.AlignCenter,CURSOR_SYMBOLS[tool])
-    painter.end()
-    return QCursor(pix,5,5)
+    return QCursor(Qt.CursorShape.CrossCursor)
 
 class UpdateCheckWorker(QThread):
     completed = Signal(object, str)
@@ -190,6 +162,8 @@ class Canvas(QWidget):
             return
         if tool=='Eyedropper':
             self.sample_color_at(x,y);return
+        if tool=='Chameleon (2×2)':
+            self.chameleon_at(x,y);return
         if tool in ('Frame Pencil','Frame Eraser'):
             m.checkpoint();self.drag=['framepaint'];self.frame_paint_at(x,y);return
         if tool=='Animation Region':m.checkpoint();self.drag=['region',(x,y),(x,y)];return
@@ -223,6 +197,34 @@ class Canvas(QWidget):
             self.mask_at(x,y,erase=True)
         else:
             self.paint_at(x,y,erase=True)
+
+    def chameleon_at(self,x,y):
+        # First left-click samples, later clicks stamp.
+        m=self.main
+        if m.chameleon_sample is None:
+            try:
+                # Use the visible artwork; keep the sample only in memory.
+                m.chameleon_sample=sample_2x2(m.current_image(),x,y)
+            except ValueError as exc:
+                m.statusBar().showMessage(str(exc),5000)
+                return
+            m.statusBar().showMessage('2 × 2 pixels sampled. Click to stamp; Resample 2×2 to select another source.',6500)
+            self.update()
+            return
+        l=m.selected_layer()
+        if l is None:
+            m.statusBar().showMessage('Select a paint layer before stamping, or add a blank paint layer.',5000)
+            return
+        if l.angle%360 or l.scale!=1:
+            m.statusBar().showMessage('Chameleon requires the selected layer at 100% scale and 0° rotation.',5500)
+            return
+        lx,ly=x-l.x,y-l.y
+        if not (0<=lx and 0<=ly and lx+2<=l.image.width and ly+2<=l.image.height):
+            m.statusBar().showMessage('Move the stamp so its full 2 × 2 pixels fit inside the selected layer.',5000)
+            return
+        m.checkpoint();m.timeline_mode=False;m.stop_preview()
+        stamp_2x2(l.image,m.chameleon_sample,lx,ly)
+        m.invalidate()
 
     def sample_color_at(self,x,y):
         """Pick a visible, opaque pixel without altering artwork or undo history."""
@@ -344,7 +346,7 @@ class MainWindow(QMainWindow):
         super().__init__();self.setWindowTitle('Slime House Studios — Pixel Art & Animation');self.setWindowIcon(QIcon(str(resource_path('assets/slime_mascot.png'))));self.resize(1450,860)
         self._last_window_state='normal'
         self.settings=QSettings('Slime House Studios','Studio');self.pet_anchors={};self.pet_regions={};self.frame_tracks={'Ink':{}};self.motion_keys={};self.layer_motion_keys={};self.pose_transition=None;self.frame_clips={};self.worksheet=NFTWorksheet();self.worksheet_row=None;self.size_px=(64,64);self.layers=[];self.regions=[];self.traits={};self.preview=[];self.index=0;self.frame_edits={};self.timeline_mode=False;self.paint_color=(169,229,188,255)
-        self.history=UndoHistory();self._restoring=False;self._dirty=False;self.project_path=None;self.external_png_path=None
+        self.history=UndoHistory();self._restoring=False;self._dirty=False;self.project_path=None;self.external_png_path=None;self.chameleon_sample=None
         self.recovery_path=Path.home()/'.slime_house_studios'/'recovery.json'
         self.autosave_timer=QTimer(self);self.autosave_timer.setInterval(60000);self.autosave_timer.timeout.connect(self.write_recovery);self.autosave_timer.start()
         self.timer=QTimer(self);self.timer.timeout.connect(self.next_frame)
@@ -370,6 +372,9 @@ class MainWindow(QMainWindow):
         png_button.clicked.connect(self.export_canvas_png);save_actions.addWidget(png_button)
         project_button=QPushButton('Save Project');project_button.setToolTip('Save editable layers and animation settings as JSON')
         project_button.clicked.connect(self.save_project);save_actions.addWidget(project_button)
+        save_as_button=QPushButton('Save As')
+        save_as_button.setToolTip('Save editable SHS layers to a NEW JSON filename, keeping the old project unchanged')
+        save_as_button.clicked.connect(self.save_project_as);save_actions.addWidget(save_as_button)
         self.external_save_button=QPushButton('Save Back to Animator PNG')
         self.external_save_button.setToolTip('Save the current canvas to the PNG opened from Friendly Animator; does not overwrite a project JSON')
         self.external_save_button.clicked.connect(self.save_external_png)
@@ -394,7 +399,10 @@ class MainWindow(QMainWindow):
             palette_row.addWidget(swatch)
         lv.addWidget(palette)
         lv.addWidget(QLabel('YOUR ACTIVE TOOL'))
-        self.tool=QComboBox();self.tool.addItems(['Move / Transform','Move Laser Asset','Pencil','Spray Can','Paint Bucket','Eraser','Eyedropper','Animation Region','Mask Brush','Mask Eraser','Frame Pencil','Frame Eraser']);lv.addWidget(self.tool)
+        self.tool=QComboBox();self.tool.addItems(['Move / Transform','Move Laser Asset','Pencil','Spray Can','Paint Bucket','Eraser','Eyedropper','Chameleon (2×2)','Animation Region','Mask Brush','Mask Eraser','Frame Pencil','Frame Eraser']);lv.addWidget(self.tool)
+        chameleon_reset=QPushButton('Chameleon: Resample 2×2')
+        chameleon_reset.setToolTip('Select Chameleon, then click a new 2 × 2 source area. Following clicks stamp that exact pattern on the selected layer.')
+        chameleon_reset.clicked.connect(self.reset_chameleon_sample);lv.addWidget(chameleon_reset)
         self.active_tool_banner=QLabel('↔  Move / Transform  ·  Drag artwork to move it')
         self.active_tool_banner.setObjectName('activeToolBanner')
         self.active_tool_banner.setWordWrap(True)
@@ -679,6 +687,7 @@ class MainWindow(QMainWindow):
             'Pencil':'Draw on the selected layer. Create a blank paint layer if needed.',
             'Eraser':'Erase artwork pixels from the selected layer.',
             'Eyedropper':'Press I, then click a visible pixel to sample its color. Returns to your previous tool.',
+            'Chameleon (2×2)':'First click samples a 2×2 area; later clicks stamp exact pixels onto the selected layer. Press Resample 2×2 to pick a new source.',
             'Animation Region':'Drag a box around the part of your artwork you want to animate.',
             'Mask Brush':'Highlight exactly which pixels an effect should animate; this does not paint the artwork.',
             'Mask Eraser':'Remove highlighted animation pixels without changing the artwork.',
@@ -727,6 +736,7 @@ class MainWindow(QMainWindow):
         add(file_menu,'&New Project',self.new_project,'Ctrl+N')
         add(file_menu,'&Open Project…',self.load_project)
         add(file_menu,'&Save Project…',self.save_project)
+        add(file_menu,'Save Project &As…',self.save_project_as)
         add(file_menu,'Save Canvas as PNG…',self.export_canvas_png)
         add(file_menu,'Clear Canvas…',self.clear_canvas)
         file_menu.addSeparator()
@@ -861,6 +871,7 @@ class MainWindow(QMainWindow):
         empty.update(pet_anchors={},pet_regions={},frame_tracks={'Ink':{}},
                      motion_keys={},layer_motion_keys={},frame_clips={})
         self.restore_snapshot(empty)
+        self.chameleon_sample=None
         self.statusBar().showMessage('Canvas cleared — Ctrl+Z to undo',4000)
 
     def open_external_png(self, path):
@@ -882,6 +893,7 @@ class MainWindow(QMainWindow):
         self.frame_tracks={'Ink':{}};self.motion_keys={};self.layer_motion_keys={}
         self.layer_list.clear();self.layer_list.addItem(target.name);self.layer_list.setCurrentRow(0)
         self.external_png_path=target
+        self.chameleon_sample=None
         # Loading a linked PNG is not an unsaved edit. checkpoint() records the
         # previous document for Undo but marks the document dirty; clear that
         # flag once the new image has been loaded successfully.
@@ -938,7 +950,7 @@ class MainWindow(QMainWindow):
                      layer_motion_keys={},frame_clips={})
         self.restore_snapshot(fresh)
         self.history=UndoHistory()
-        self.project_path=None;self._dirty=False;self.external_png_path=None;self.external_save_button.setVisible(False)
+        self.project_path=None;self._dirty=False;self.external_png_path=None;self.chameleon_sample=None;self.external_save_button.setVisible(False)
         # A fresh project supersedes the previous recovery only after reset succeeds.
         self.recovery_path.unlink(missing_ok=True)
         self.sizes.blockSignals(True);self.sizes.setCurrentIndex(1);self.sizes.blockSignals(False)
@@ -1044,6 +1056,11 @@ class MainWindow(QMainWindow):
         self.canvas.setCursor(cursor_for_tool(tool))
         self.open_animator_for_tool(tool)
         self.canvas.update()
+
+    def reset_chameleon_sample(self):
+        self.chameleon_sample=None
+        self.tool.setCurrentText('Chameleon (2×2)')
+        self.statusBar().showMessage('Chameleon: click the top-left pixel of a 2 × 2 source block.',5000)
 
     def open_animator_for_tool(self,tool):
         if tool in ('Animation Region','Mask Brush','Mask Eraser'):
@@ -1225,6 +1242,7 @@ class MainWindow(QMainWindow):
             self.size_px=(w,h)
         else:
             n=int(self.sizes.currentText().split(' ')[0]);self.size_px=(n,n)
+        self.chameleon_sample=None
         self.invalidate()
     def import_png(self):
         path,_=QFileDialog.getOpenFileName(self,'Import PNG','','Images (*.png *.webp)')
@@ -1621,6 +1639,7 @@ class MainWindow(QMainWindow):
 
     def restore_snapshot(self,obj):
         size,layers,regions=decode(obj)
+        self.chameleon_sample=None
         self._restoring=True
         try:
             self.size_px=size;self.layers=layers;self.regions=regions
@@ -1699,13 +1718,34 @@ class MainWindow(QMainWindow):
             self.statusBar().showMessage('Project saved safely',4000)
         except Exception as exc:QMessageBox.warning(self,'Save failed',str(exc))
 
+    def save_project_as(self):
+        original=self.project_path
+        suggestion=('project_copy.json' if not original else
+                    str(Path(original).with_name(Path(original).stem+'_copy.json')))
+        path,_=QFileDialog.getSaveFileName(self,'Save Project As (new copy)',suggestion,'JSON (*.json)')
+        if not path:return False
+        if not path.lower().endswith('.json'):path+='.json'
+        if original and Path(path).resolve()==Path(original).resolve():
+            QMessageBox.warning(self,'Choose another filename',
+                'Save Project As needs a different filename so the original is preserved.')
+            return False
+        try:
+            atomic_write(path,self.snapshot())
+        except Exception as exc:
+            QMessageBox.warning(self,'Save As failed',str(exc))
+            return False
+        self.project_path=path;self._dirty=False
+        self.recovery_path.unlink(missing_ok=True)
+        self.statusBar().showMessage('New SHS project copy saved: '+str(path),5000)
+        return True
+
     def load_project(self):
         path,_=QFileDialog.getOpenFileName(self,'Open project','','JSON (*.json)')
         if not path:return
         try:
             obj=json.loads(Path(path).read_text(encoding='utf-8'))
             self.checkpoint();self.restore_snapshot(obj)
-            self.project_path=path;self._dirty=False
+            self.project_path=path;self._dirty=False;self.chameleon_sample=None
             self.recovery_path.unlink(missing_ok=True)
         except Exception as exc:QMessageBox.warning(self,'Load failed',str(exc))
 
@@ -1728,15 +1768,37 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self,event):
         if self._dirty:
-            if not self.write_recovery():
-                QMessageBox.warning(self,'Recovery backup failed',
-                    'Your unsaved work could not be backed up. The application will stay open.\n'
-                    'Please use Save Project to save your artwork before closing.')
-                event.ignore();return
+            # Do not write a recovery file *before* the person chooses.  No
+            # means explicitly discard this session, not "stay open".
             choice=QMessageBox.question(self,'Unsaved changes',
-                'Your work has unsaved changes. Close with a recovery backup?\n\nChoose No to stay and save your project.',
-                QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No,QMessageBox.StandardButton.No)
-            if choice!=QMessageBox.StandardButton.Yes:
+                'This SHS project has unsaved changes.\n\n'
+                'Yes: Close with a recovery backup (restore on next launch).\n'
+                'No: Close WITHOUT saving; discard these changes and recovery.\n'
+                'Cancel: Return to editing.',
+                QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No|QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel)
+            if choice==QMessageBox.StandardButton.Cancel:
+                event.ignore();return
+            if choice==QMessageBox.StandardButton.No:
+                # The periodic autosave may have made an older recovery copy.
+                # Discard it as well so "No" cannot unexpectedly restore work.
+                try:
+                    self.recovery_path.unlink(missing_ok=True)
+                except OSError as exc:
+                    QMessageBox.warning(self,'Could not discard recovery',
+                        'The recovery file could not be removed: '+str(exc)+
+                        '\nThe editor will stay open so you can resolve the error.')
+                    event.ignore();return
+            elif choice==QMessageBox.StandardButton.Yes:
+                # Only this route persists unsaved SHS data, to recovery only.
+                if not self.write_recovery():
+                    QMessageBox.warning(self,'Recovery backup failed',
+                        'Your unsaved work could not be backed up. The application will stay open.\n'
+                        'Please use Save Project or try again.')
+                    event.ignore();return
+            else:
+                # Window manager or unexpected dialog result must never
+                # silently discard a dirty document.
                 event.ignore();return
         event.accept()
 

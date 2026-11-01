@@ -681,3 +681,42 @@ QComboBox#pixelPreviewSpeedSelect {
 QComboBox#pixelPreviewSpeedSelect:hover { border-color: #c199ff; }
 '''
 PIXEL_THEME_QSS += PHASE103_RIGHT_DOCK_QSS
+
+# Build 1.3 - only viewport layout and scroll affordance; editor pixels unaffected.
+BUILD13_CANVAS_TIMELINE_QSS = r'''
+QSplitter#pixelCanvasTimelineSplitter::handle:vertical {
+    background: #7353b7;
+    border-top: 2px solid #b293ee;
+    border-bottom: 2px solid #26345d;
+    margin: 1px 0px;
+}
+QSplitter#pixelCanvasTimelineSplitter::handle:vertical:hover {
+    background: #b784f4;
+    border-top: 2px solid #e0c2ff;
+}
+QScrollArea#pixelLeftToolsScroll QScrollBar:vertical,
+QListWidget#pixelAssetLibraryList QScrollBar:vertical {
+    width: 19px;
+    background: #121c37;
+    border: 1px solid #6379bb;
+    margin: 0px;
+}
+QScrollArea#pixelLeftToolsScroll QScrollBar::handle:vertical,
+QListWidget#pixelAssetLibraryList QScrollBar::handle:vertical {
+    background: #8063ca;
+    border: 2px solid #c0a5ee;
+    border-radius: 4px;
+    min-height: 44px;
+}
+QScrollArea#pixelLeftToolsScroll QScrollBar::handle:vertical:hover,
+QListWidget#pixelAssetLibraryList QScrollBar::handle:vertical:hover {
+    background: #aa87ee;
+}
+QScrollArea#pixelLeftToolsScroll QScrollBar::add-line:vertical,
+QScrollArea#pixelLeftToolsScroll QScrollBar::sub-line:vertical,
+QListWidget#pixelAssetLibraryList QScrollBar::add-line:vertical,
+QListWidget#pixelAssetLibraryList QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+'''
+PIXEL_THEME_QSS += BUILD13_CANVAS_TIMELINE_QSS

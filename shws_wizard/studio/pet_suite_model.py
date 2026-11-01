@@ -29,6 +29,7 @@ class PetSuiteModel(CreatureRig):
         self.anchors = {}  # part index -> local anchor (x, y) in source pixels
         self.angles = {}  # part index -> degrees counterclockwise around joint
         self.attachments = {}  # child index -> {parent, offset_x, offset_y}; offsets are pixel coordinates
+        self.unplaced_next_pose = None  # Pending canvas draft, keyed to saved pose identity.
 
     def import_part(self, name, image, width=None, height=None):
         original = image.convert('RGBA').copy()
@@ -608,6 +609,12 @@ class PetSuiteModel(CreatureRig):
                                    for pose_id, history in self.pose_recovery.items()
                                    if history and any(pose_id in ids for ids in self.pose_ids.values())},
                     current=self.current, attachments=self.attachments, anchors=self.anchors, angles=self.angles)
+        # An unplaced NEXT pose must survive Save Creature and reopen without
+        # silently overwriting an earlier saved frame. The editable live draft
+        # is already serialized in `parts`; keep only its stable owner marker.
+        unplaced = getattr(self, 'unplaced_next_pose', None)
+        if unplaced is not None:
+            data['unplaced_next_pose'] = dict(unplaced)
         # Commit the project manifest last. A failed/interrupted write must not
         # truncate the previously saved JSON file.
         temporary = None
@@ -668,6 +675,7 @@ class PetSuiteModel(CreatureRig):
         model.frame_durations = data.get('frame_durations', {})
         for animation in model.animations: model._sync_durations(animation)
         model.current = data.get('current', 'Idle / Breathing')
+        model.unplaced_next_pose = data.get('unplaced_next_pose')
         model.attachments = {int(k): v for k, v in data.get('attachments', {}).items()}
         model.anchors = {int(k): v for k, v in data.get('anchors', {}).items()}
         model.angles = {int(k): float(v) for k, v in data.get('angles', {}).items()}
@@ -678,7 +686,8 @@ class PetSuiteModel(CreatureRig):
         """Stable digest of editable content, including original PNG pixels."""
         payload = dict(size=self.size, parts=self.snapshot(), animations=self.animations,
                        frame_durations=self.frame_durations, current=self.current,
-                       anchors=self.anchors, angles=self.angles, attachments=self.attachments)
+                       anchors=self.anchors, angles=self.angles, attachments=self.attachments,
+                       unplaced_next_pose=getattr(self, 'unplaced_next_pose', None))
         digest = hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode('utf-8'))
         for original in self.originals:
             digest.update(str(original.size).encode('ascii'))

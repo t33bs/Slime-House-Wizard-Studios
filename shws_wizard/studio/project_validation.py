@@ -69,6 +69,19 @@ def validate_project_data(data):
         for i, value in enumerate(values):
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
                 _error(f'frame duration {name!r}[{i}]', 'must be a positive number')
+    # An unplaced draft is NOT another saved animation pose. Verify that its
+    # owner is a real stable saved pose, never an untrusted numeric row.
+    draft = data.get('unplaced_next_pose')
+    if draft is not None:
+        if not isinstance(draft, dict) or set(draft) != {'animation', 'pose_id'}:
+            _error('unplaced next pose', 'must identify its saved animation and pose')
+        animation, pose_id = draft['animation'], draft['pose_id']
+        pose_ids = data.get('pose_ids', {})
+        if (not isinstance(animation, str) or animation not in animations
+                or not isinstance(pose_id, str) or not isinstance(pose_ids, dict)
+                or not isinstance(pose_ids.get(animation), list)
+                or pose_id not in pose_ids[animation]):
+            _error('unplaced next pose', 'references a missing saved pose identity')
     return data
 
 

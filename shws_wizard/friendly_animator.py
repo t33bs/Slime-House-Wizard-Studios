@@ -565,7 +565,7 @@ class Suite(QMainWindow):
         outer.addWidget(pixel_header)
         top_container=QWidget();top=QHBoxLayout(top_container);top.setContentsMargins(0,0,0,0)
         top_scroll=QScrollArea();top_scroll.setWidget(top_container);top_scroll.setWidgetResizable(True);top_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded);top_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff);top_scroll.setFixedHeight(42);outer.addWidget(top_scroll)
-        for title,callback in [('Import PNG assets',self.import_assets),('Open creature',self.open_project),('New creature',self.new_project),('Save creature',self.save_project),('Export Sprite Sheet',self.export),('Export GIF / APNG',self.export_animated),('Export Frame PNG',self.export_current_frame),('Export All Frames',self.export_all_frames),('Edit Frame in SHS',self.edit_frame_in_shs),('Set SHS Location',self.choose_shs_location),('Reload SHS Edit',self.reload_shs_edit),('Replace Frame PNG',self.replace_current_frame_png)]:
+        for title,callback in [('Import PNG assets',self.import_assets),('Open creature',self.open_project),('New creature',self.new_project),('Save creature',self.save_project),('Save creature as…',self.save_project_as),('Export Sprite Sheet',self.export),('Export GIF / APNG',self.export_animated),('Export Frame PNG',self.export_current_frame),('Export All Frames',self.export_all_frames),('Edit Frame in SHS',self.edit_frame_in_shs),('Set SHS Location',self.choose_shs_location),('Reload SHS Edit',self.reload_shs_edit),('Replace Frame PNG',self.replace_current_frame_png)]:
             b=QPushButton(title)
             b.setProperty('uiRole', 'primary' if title in ('New creature','Open creature','Save creature') else 'success' if title.startswith('Export') else 'toolbar')
             b.clicked.connect(callback);top.addWidget(b)
@@ -767,8 +767,27 @@ class Suite(QMainWindow):
         self.slimer_selection=None
         self._update_slimer_color_button()
 
-        splitter.addWidget(self.scroll_panel(left))
-        middle=QWidget();middle.setObjectName('pixelCanvasRegion');ml=QVBoxLayout(middle);ml.setContentsMargins(6,4,6,4);ml.setSpacing(4)
+        self.left_tool_scroll=self.scroll_panel(left)
+        self.left_tool_scroll.setObjectName('pixelLeftToolsScroll')
+        self.left_tool_scroll.verticalScrollBar().setMinimumWidth(19)
+        splitter.addWidget(self.left_tool_scroll)
+        middle=QWidget();middle.setObjectName('pixelCanvasRegion')
+        middle_layout=QVBoxLayout(middle)
+        middle_layout.setContentsMargins(6,4,6,4)
+        middle_layout.setSpacing(4)
+        # Vertical handle splits the *view*, not the actual sprite dimensions.
+        # Both regions can be resized independently without editing pose pixels.
+        self.canvas_timeline_splitter=QSplitter(Qt.Orientation.Vertical,middle)
+        self.canvas_timeline_splitter.setObjectName('pixelCanvasTimelineSplitter')
+        self.canvas_timeline_splitter.setHandleWidth(13)
+        self.canvas_timeline_splitter.setChildrenCollapsible(False)
+        self.canvas_timeline_splitter.setToolTip('Drag this bar up to see more poses, or down to enlarge the editing canvas.')
+        middle_layout.addWidget(self.canvas_timeline_splitter,1)
+        canvas_region=QWidget()
+        canvas_region.setObjectName('pixelCanvasTopArea')
+        ml=QVBoxLayout(canvas_region)
+        ml.setContentsMargins(0,0,0,0)
+        ml.setSpacing(4)
         # Keep the animation state selector internally for legacy project loading,
         # saved-pose navigation and export. Do not display recipe/preset choices.
         # It must not be added to the layout: the canvas should have no giant
@@ -785,7 +804,7 @@ class Suite(QMainWindow):
         self.buddy_toggle.toggled.connect(lambda enabled:self.settings.setValue('slime_buddy_enabled',enabled))
         self.refresh_buddy()
         canvas_title=QLabel('✦ BUILD YOUR POSE  •  Drag parts on the canvas');canvas_title.setObjectName('pixelCanvasHeading');canvas_title.setProperty('uiRole','sectionTitle');ml.addWidget(canvas_title)
-        self.canvas=DragCanvas();self.canvas.handle_layer_picker.currentIndexChanged.connect(self.assets.setCurrentRow);self.canvas.handle_mode_picker.currentIndexChanged.connect(lambda _index: self._refresh_active_layer_label());self.canvas.cleaner_stroke.connect(self.cleaner_paint);self.canvas.cleaner_stroke_start.connect(self.cleaner_start_stroke);self.canvas.slimer_stroke.connect(self.slimer_paint);self.canvas.slimer_stroke_start.connect(self.slimer_start_stroke);self.canvas.slimer_drag.connect(self.slimer_drag_transform);self.canvas.slimer_drag_start.connect(self.slimer_start_transform);self.canvas.slimer_drag_end.connect(self.slimer_end_transform);self.canvas.moved.connect(self.drag_part);self.canvas.resized.connect(self.resize_drag);self.canvas.picked.connect(self.assets.setCurrentRow);self.canvas.anchor_chosen.connect(self.place_anchor);self.canvas.angle_chosen.connect(self.turn_part);self.canvas.setMinimumHeight(380);self.canvas.setObjectName('pixelMainCanvas');self.canvas.setStyleSheet('background:#161c38;border:2px solid #6986c7;border-radius:5px;');ml.addWidget(self.canvas,1);self.canvas.setToolTip('Expand Transform handles on the canvas to select a layer and one X, Y, Rotation, or Resize handle. Edit Selection enables or disables the chosen handle.')
+        self.canvas=DragCanvas();self.canvas.handle_layer_picker.currentIndexChanged.connect(self.assets.setCurrentRow);self.canvas.handle_mode_picker.currentIndexChanged.connect(lambda _index: self._refresh_active_layer_label());self.canvas.cleaner_stroke.connect(self.cleaner_paint);self.canvas.cleaner_stroke_start.connect(self.cleaner_start_stroke);self.canvas.slimer_stroke.connect(self.slimer_paint);self.canvas.slimer_stroke_start.connect(self.slimer_start_stroke);self.canvas.slimer_drag.connect(self.slimer_drag_transform);self.canvas.slimer_drag_start.connect(self.slimer_start_transform);self.canvas.slimer_drag_end.connect(self.slimer_end_transform);self.canvas.moved.connect(self.drag_part);self.canvas.resized.connect(self.resize_drag);self.canvas.picked.connect(self.assets.setCurrentRow);self.canvas.anchor_chosen.connect(self.place_anchor);self.canvas.angle_chosen.connect(self.turn_part);self.canvas.setMinimumHeight(205);self.canvas.setObjectName('pixelMainCanvas');self.canvas.setStyleSheet('background:#161c38;border:2px solid #6986c7;border-radius:5px;');ml.addWidget(self.canvas,1);self.canvas.setToolTip('Expand Transform handles on the canvas to select a layer and one X, Y, Rotation, or Resize handle. Edit Selection enables or disables the chosen handle.')
         nav=QHBoxLayout();ml.addLayout(nav)
         canvas_nav_title=QLabel('Canvas view:');canvas_nav_title.setObjectName('pixelCanvasNavLabel');nav.addWidget(canvas_nav_title)
         fit=QPushButton('Fit to Canvas');fit.setObjectName('pixelCanvasFitButton');fit.setToolTip('Show the whole creature again (does not resize your artwork).');fit.clicked.connect(self.canvas.reset_view);nav.addWidget(fit)
@@ -804,15 +823,21 @@ class Suite(QMainWindow):
         self.add_workspace=QPushButton('+');self.add_workspace.setObjectName('pixelWorkspaceAddButton');self.add_workspace.setFixedWidth(36)
         self.add_workspace.setToolTip('Open or create a creature project')
         self.add_workspace.clicked.connect(self.workspace_menu);tabline.addWidget(self.add_workspace)
+        self.canvas_timeline_splitter.addWidget(canvas_region)
+        timeline_content=QWidget()
+        tl=QVBoxLayout(timeline_content)
+        tl.setContentsMargins(0,0,4,0)
+        tl.setSpacing(4)
+        ml=tl
         timeline_title=QLabel('▣ POSE TIMELINE  •  Click a frame to edit');timeline_title.setObjectName('pixelTimelineHeading');timeline_title.setProperty('uiRole','sectionTitle');ml.addWidget(timeline_title)
-        self.timeline=PoseTimelineList();self.timeline.setObjectName('pixelPoseTimeline');self.timeline.setFlow(QListWidget.Flow.LeftToRight);self.timeline.setMaximumHeight(116);self.timeline.setIconSize(__import__('PySide6.QtCore',fromlist=['QSize']).QSize(66,66));self.timeline.setSpacing(5);self.timeline.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.timeline=PoseTimelineList();self.timeline.setObjectName('pixelPoseTimeline');self.timeline.setFlow(QListWidget.Flow.LeftToRight);self.timeline.setMinimumHeight(124);self.timeline.setMaximumHeight(420);self.timeline.setIconSize(__import__('PySide6.QtCore',fromlist=['QSize']).QSize(82,82));self.timeline.setSpacing(5);self.timeline.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.timeline.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.timeline.setDragDropOverwriteMode(False)
         self.timeline.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.timeline.setDragEnabled(True)
         self.timeline.setAcceptDrops(True)
         self.timeline.model().rowsMoved.connect(self._timeline_rows_moved)
-        self.timeline.currentRowChanged.connect(self.load_frame);ml.addWidget(self.timeline)
+        self.timeline.currentRowChanged.connect(self.load_frame);ml.addWidget(self.timeline,1)
         timing=QHBoxLayout();ml.addLayout(timing)
         timing_caption=QLabel('How long should this pose last?');timing_caption.setObjectName('pixelTimelineTimingCaption');timing.addWidget(timing_caption)
         self.duration=QSpinBox();self.duration.setObjectName('pixelTimelineDuration');self.duration.setRange(40,2000);self.duration.setSingleStep(25);self.duration.setSuffix(' ms');self.duration.setValue(125)
@@ -850,7 +875,23 @@ class Suite(QMainWindow):
         import_menu.addAction('Build new pose over previous artwork',lambda checked=False: self.import_pose_png_overlay())
         self.pose_png_import_button.setMenu(import_menu)
         timeline_tools.insertWidget(1,self.pose_png_import_button)
-        splitter.addWidget(self.scroll_panel(middle))
+        # The timeline scrolls its button rows independently when made compact.
+        self.timeline_scroll=self.scroll_panel(timeline_content)
+        self.timeline_scroll.setObjectName('pixelTimelineToolsScroll')
+        self.timeline_scroll.setMinimumHeight(135)
+        self.canvas_timeline_splitter.addWidget(self.timeline_scroll)
+        self.canvas_timeline_splitter.setStretchFactor(0,3)
+        self.canvas_timeline_splitter.setStretchFactor(1,2)
+        stored_layout=self.settings.value('canvas_timeline_splitter_sizes',None)
+        if isinstance(stored_layout,(list,tuple)) and len(stored_layout)==2:
+            try:
+                initial_layout=[max(210,int(stored_layout[0])),max(135,int(stored_layout[1]))]
+            except (ValueError,TypeError):
+                initial_layout=[425,285]
+        else:
+            initial_layout=[425,285]
+        self.canvas_timeline_splitter.setSizes(initial_layout)
+        splitter.addWidget(middle)
         # Phase 97 UI: the human's editor and Buddy's independent production
         # engine have separate workspaces. The two exchange assets only after
         # explicit approval; no generation engine is connected in this phase.
@@ -1164,6 +1205,12 @@ class Suite(QMainWindow):
 
     def autosave_recovery(self):
         self.preserve_pose_draft()
+        # Keep an unplaced next pose in recovery without adding a timeline frame.
+        # The model's live `parts` already contain the editable working canvas.
+        if getattr(self, '_next_pose_capture_pending', False):
+            self._remember_unplaced_next_pose()
+        else:
+            self.model.unplaced_next_pose = None
         # Every open creature has its own snapshot; switching tabs cannot overwrite it.
         self._projects[self._active_project_id]=self.model
         failures=[]
@@ -1202,6 +1249,7 @@ class Suite(QMainWindow):
             return
         sizes=self.main_splitter.sizes() if self.comparison_panel.isVisible() else self._comparison_sizes
         self.settings.setValue('splitter_sizes',sizes)
+        self.settings.setValue('canvas_timeline_splitter_sizes',self.canvas_timeline_splitter.sizes())
         self.settings.setValue('comparison_hidden',not self.comparison_panel.isVisible())
         self.settings.setValue('animation_preview_collapsed',self._animation_preview_collapsed)
         self.settings.setValue('buddy_preview_splitter_sizes',self._expanded_right_sizes if self._animation_preview_collapsed else self.right_splitter.sizes())
@@ -2756,6 +2804,7 @@ class Suite(QMainWindow):
             self.refresh_timeline()
             return False
         self._next_pose_capture_pending=False
+        self.model.unplaced_next_pose = None
         if old_frames:
             prior = old_frames[min(max(index - 1, 0), len(old_frames) - 1)]
             visually_changed = (self.model.render(prior).tobytes()
@@ -3510,7 +3559,9 @@ class Suite(QMainWindow):
             previous_key=self._pose_draft_key
             next_key=self._saved_pose_key(animation,index)
             changing_pose=previous_key is not None and previous_key != next_key
-            if changing_pose and self._next_pose_capture_pending:
+            if previous_key is not None and self._next_pose_capture_pending:
+                # Even re-clicking the SAME saved thumbnail must not discard
+                # an unfinished next-pose draft after Save Creature/reopen.
                 blocked=self.timeline.blockSignals(True)
                 try:self.timeline.setCurrentRow(self.frame)
                 finally:self.timeline.blockSignals(blocked)
@@ -3548,6 +3599,7 @@ class Suite(QMainWindow):
         self.remember()
         self.model.save_pose_at(name,self.frame)
         self._next_pose_capture_pending=False
+        self.model.unplaced_next_pose = None
         self._pose_draft_key=target_key
         self._pose_draft_dirty=False
         self.refresh_timeline()
@@ -4111,6 +4163,13 @@ class Suite(QMainWindow):
         if project_id not in self._projects:return
         self.preserve_pose_draft()
         if project_id==self._active_project_id:return
+        # Preserve an unplaced next-pose canvas when switching creature tabs.
+        # No implicit Save Current Pose, no new timeline frame.
+        if getattr(self, '_next_pose_capture_pending', False):
+            if not self._remember_unplaced_next_pose():
+                return
+        else:
+            self.model.unplaced_next_pose = None
         self._pose_draft_key=None
         self._pose_live_id=None
         self._projects[self._active_project_id]=self.model
@@ -4153,15 +4212,30 @@ class Suite(QMainWindow):
         # Synchronize the model explicitly before restoring its pose.
         self.model.current = animation
         poses = self.model.animations.get(animation, [])
+        unplaced = getattr(self.model, 'unplaced_next_pose', None)
+        self._next_pose_capture_pending = False
         if poses:
-            index = min(max(0, self._project_timeline_index.get(project_id, 0)), len(poses)-1)
+            ids = self.model._sync_pose_ids(animation)
+            # A pending draft belongs to one stable saved pose ID. Its pixels
+            # live in model.parts, NOT in animations[animation][index].
+            # Applying the selected saved pose here would destroy that draft.
+            restore_unplaced = (isinstance(unplaced, dict)
+                                and unplaced.get('animation') == animation
+                                and unplaced.get('pose_id') in ids)
+            index = (ids.index(unplaced['pose_id']) if restore_unplaced else
+                     min(max(0, self._project_timeline_index.get(project_id, 0)), len(poses)-1))
             self.frame = index
-            self._apply_saved_pose(animation,index)
-            self._pose_draft_key = (project_id, animation, index, self.model.pose_id(animation, index))
+            if restore_unplaced:
+                self._pose_live_id = ids[index]
+                self._next_pose_capture_pending = True
+            else:
+                self._apply_saved_pose(animation,index)
+            self._pose_draft_key = (project_id, animation, index, ids[index])
         else:
             self.frame = 0
             self._pose_draft_key = None
             self._pose_live_id = None
+            self.model.unplaced_next_pose = None
             for part in self.model.parts:
                 if part.get('name') == 'Slimer pose overlay':
                     part['visible'] = False
@@ -4222,13 +4296,32 @@ class Suite(QMainWindow):
                     return False
         return True
 
-    def save_project_by_id(self,project_id):
-        """Save one project without silently overwriting a different project."""
-        if project_id not in self._projects:return False
-        if (project_id == self._active_project_id
-                and getattr(self, '_next_pose_capture_pending', False)):
-            self.status.setText('Your next pose is not placed yet. Click Place Frame to save it as a NEW pose, or Save Current Pose to replace the selected pose, before saving the creature.')
+    def _remember_unplaced_next_pose(self):
+        """Record the owner of a live next-pose draft without committing it.
+
+        The model saves the live canvas as `parts` and the *previous* saved
+        frames as `animations`. Only this small marker is needed for reopening
+        the live canvas as unplaced work. Never guess a pose by row number.
+        """
+        if not self._next_pose_capture_pending:
+            self.model.unplaced_next_pose = None
+            return True
+        animation = self.anim.currentText()
+        if not self._canvas_owns_selected_pose(animation):
+            self.status.setText('Save blocked: next-pose draft owner could not be verified. The previous poses were not changed.')
             return False
+        self.model.unplaced_next_pose = {
+            'animation': animation,
+            'pose_id': self.model.pose_id(animation, self.frame),
+        }
+        return True
+
+    def save_project_by_id(self,project_id,force_new_path=False):
+        """Save project in place, or explicitly Save As to a distinct rig JSON."""
+        if project_id not in self._projects:return False
+        if project_id == self._active_project_id:
+            if not self._remember_unplaced_next_pose():
+                return False
         # A provisional Slimer layer is not yet a committed pose edit. Saving
         # here would serialize the destination asset but omit the source erase,
         # leaving a misleading and potentially doubled-up project on reopen.
@@ -4236,11 +4329,28 @@ class Suite(QMainWindow):
             self.status.setText('Apply Move or Cancel Unconfirmed Layer before saving this creature.')
             return False
         if project_id==self._active_project_id:self.preserve_pose_draft()
-        path=self._project_paths.get(project_id)
+        previous=self._project_paths.get(project_id)
+        path=None if force_new_path else previous
         if not path:
-            suggested=self._project_labels.get(project_id,'creature')+'.rig.json'
-            path,_=QFileDialog.getSaveFileName(self,'Save creature',suggested,'Rig project (*.json)')
+            suggested=(str(Path(previous).with_name(Path(previous).stem+'.copy.rig.json'))
+                       if force_new_path and previous else
+                       self._project_labels.get(project_id,'creature')+'.rig.json')
+            path,_=QFileDialog.getSaveFileName(
+                self,'Save Creature As' if force_new_path else 'Save creature',
+                suggested,'Editable rig project (*.rig.json *.json)')
             if not path:return False
+            if not path.lower().endswith('.json'):
+                path += '.rig.json'
+            if force_new_path and previous and Path(path).resolve()==Path(previous).resolve():
+                QMessageBox.warning(self,'Choose another filename',
+                    'Save Creature As needs a different filename so the original is preserved.')
+                return False
+            # Prevent two open tabs from inadvertently sharing a save target.
+            for other_id, other_path in self._project_paths.items():
+                if other_id!=project_id and other_path and Path(path).resolve()==Path(other_path).resolve():
+                    QMessageBox.warning(self,'Already open',
+                        'That filename belongs to another open creature. Choose a new name.')
+                    return False
         model=self.model if project_id==self._active_project_id else self._projects[project_id]
         try:
             model.save_project(path)
@@ -4251,7 +4361,10 @@ class Suite(QMainWindow):
         self._saved_fingerprints[project_id]=model.content_fingerprint()
         self._dirty_projects.discard(project_id)
         discard_project_recovery(project_id)
-        self.status.setText(f'Saved {path}')
+        if project_id == self._active_project_id and self._next_pose_capture_pending:
+            self.status.setText(f'Saved {path} — unfinished NEXT pose preserved as an editable draft; no new timeline frame placed.')
+        else:
+            self.status.setText(f'Saved {path}')
         return True
 
     def close_creature_project(self,project_id):
@@ -4327,7 +4440,10 @@ class Suite(QMainWindow):
         self.status.setText(f'New transparent canvas: {width} × {height} pixels.')
 
     def save_project(self):
-        self.save_project_by_id(self._active_project_id)
+        return self.save_project_by_id(self._active_project_id)
+
+    def save_project_as(self):
+        return self.save_project_by_id(self._active_project_id,force_new_path=True)
 
     def open_project(self):
         path,_=QFileDialog.getOpenFileName(self,'Open creature','','Rig project (*.json)')
