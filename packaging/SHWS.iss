@@ -8,11 +8,11 @@ AppVersion={#AppVersion}
 AppPublisher=Slime House Studios
 DefaultDirName={localappdata}\Programs\Slime House Wizard Studios
 DefaultGroupName={#AppName}
-OutputDir=installer-output
+OutputDir=..\installer-output
 OutputBaseFilename=SlimeHouseWizardStudios-Build1-Setup
 Compression=lzma2
 SolidCompression=yes
-SetupIconFile=assets\slime_house_studios.ico
+SetupIconFile=..\assets\slime_house_studios.ico
 UninstallDisplayIcon={app}\{#AppExe}
 PrivilegesRequired=lowest
 WizardStyle=modern
@@ -22,7 +22,7 @@ DisableProgramGroupPage=yes
 Uninstallable=yes
 
 [Files]
-Source: "dist\SlimeHouseWizardStudios\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\SlimeHouseWizardStudios\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Tasks]
 Name: "desktopicon"; Description: "Create desktop shortcut"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
