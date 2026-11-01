@@ -1,0 +1,1 @@
+Moved Slimer Preview from the left tool panel to the right Compare & Preview panel. Removed built-in preset 2D pixel animation reference drawings, shape selector and labels. Kept the user-uploaded animation reference viewer and creature frame preview. Automated regression tests pass. Windows GUI verification remains pending.

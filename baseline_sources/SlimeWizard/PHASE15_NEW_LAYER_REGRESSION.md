@@ -1,0 +1,1 @@
+Phase 15: adds actual staged-layer consecutive Edit Selection / Apply Move GUI regression tests for both Move Original and Copy modes, and recovery from externally missing provisional layer. GUI tests are skipped in this environment without PySide6 and require Windows verification. Existing timeline reorder issue deferred.

@@ -1,0 +1,5 @@
+Phase 15 stability checkpoint
+Local tests: 334 passed, 4 skipped, 441 subtests passed.
+New Windows GUI test: test_phase15_repeated_overlay_moves.py (skipped locally: PySide6 unavailable).
+New static contracts: test_phase15_ui_stability_contract.py.
+Do not replace known-good Phase 14 build until Windows GUI tests pass.

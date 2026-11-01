@@ -1,0 +1,1 @@
+Removed unreachable animation/phase tab handlers; kept only creature-project tabs and project-only plus menu. Timeline and all functional pose controls unchanged. Tests: 370 passed, 8 skipped, 12 subtests passed. Windows GUI verification outstanding. Excluded: []

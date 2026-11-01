@@ -1,0 +1,115 @@
+name: Slime Wizard Phase 103 - Windows Portable
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'friendly_animator.py'
+      - 'studio/**'
+      - 'packaging/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - '.github/workflows/build-friendly-animator.yml'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - name: Check out Phase 103 source
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13 (matches stored AST baselines)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install application and test dependencies
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install "pytest>=8,<10" "pytest-timeout>=2.3,<3"
+
+      - name: Compile application and tests
+        run: python -m compileall -q friendly_animator.py studio tests
+
+      - name: Check source and Python version
+        shell: pwsh
+        run: |
+          python --version
+          git rev-parse HEAD
+          python -c "from pathlib import Path; p=Path('friendly_animator.py'); s=p.read_text(encoding='utf8'); required=['_timeline_structure_changed', '_after_history_restore', 'restart_playback']; missing=[name for name in required if name not in s]; print('Missing required methods:',missing); assert not missing"
+
+      - name: Run existing unittest regressions
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          python -m unittest discover -s tests -q 2>&1 | Tee-Object -FilePath windows-unittest-results.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Unittest regression suite failed' }
+
+      - name: Run full pytest and GUI regressions
+        shell: pwsh
+        timeout-minutes: 15
+        run: |
+          $env:PYTHONUNBUFFERED = '1'
+          python -u -m pytest -vv --tb=short --durations=20 --timeout=120 --timeout-method=thread tests 2>&1 | Tee-Object -FilePath windows-pytest-results.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Pytest regression suite failed; review the uploaded Windows pytest log' }
+
+      - name: Upload test logs for troubleshooting
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SlimeWizard-Phase103-Windows-Test-Logs
+          path: |
+            windows-unittest-results.txt
+            windows-pytest-results.txt
+          if-no-files-found: warn
+
+      - name: Build portable Windows EXE folder
+        shell: pwsh
+        timeout-minutes: 10
+        run: |
+          # Repository's packaging/ Python package shadows PyPI's packaging library
+          # in non-isolated launches. -I excludes the repository from Python's
+          # module search path while PyInstaller itself starts.
+          python -I -c "import packaging.requirements; import PyInstaller; print('Build imports OK')"
+          if ($LASTEXITCODE -ne 0) { throw 'Build import preflight failed' }
+          python -I -m PyInstaller --noconfirm --clean --onedir --windowed --name SlimeWizard --icon studio/assets/wizard_slime.ico --add-data "studio/assets;studio/assets" friendly_animator.py
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed' }
+
+      - name: Record Windows display and Qt runtime diagnostics
+        shell: pwsh
+        run: |
+          Write-Host "Windows: $([System.Environment]::OSVersion.VersionString)"
+          Write-Host "Architecture: $env:PROCESSOR_ARCHITECTURE"
+          python -c "import PySide6; print('PySide6:', PySide6.__version__)"
+
+      - name: Verify packaged GUI starts
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $exe = Resolve-Path 'dist/SlimeWizard/SlimeWizard.exe'
+          if (!(Test-Path 'dist/SlimeWizard/_internal')) { throw 'Missing bundled dependencies' }
+          $p = Start-Process -FilePath $exe -ArgumentList '--smoke-test' -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Packaged GUI smoke test failed: $($p.ExitCode)" }
+
+      - name: Package portable ZIP and checksum
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = 'SlimeWizard-Phase103-Windows-Portable.zip'
+          Compress-Archive -Path 'dist/SlimeWizard' -DestinationPath $zip -Force
+          if (!(Test-Path $zip)) { throw 'Portable ZIP was not created' }
+          $hash = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          "$hash  $zip" | Set-Content -Path 'SlimeWizard-Phase103-SHA256.txt' -Encoding utf8
+
+      - name: Upload portable Windows release (no installer)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SlimeWizard-Phase103-Windows-Portable
+          path: |
+            SlimeWizard-Phase103-Windows-Portable.zip
+            SlimeWizard-Phase103-SHA256.txt
+          if-no-files-found: error

@@ -1,0 +1,131 @@
+name: SHWS Build 1 - Windows portable and optional installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 70
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - name: Check out new SHWS repository
+        uses: actions/checkout@v4
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install Qt, packaging and test dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m pip install 'pytest>=8,<10' 'pytest-timeout>=2.3,<3'
+      - name: Python compilation and integration boundary checks
+        shell: pwsh
+        run: |
+          python -m compileall -q main.py studio shws_wizard tests
+          python -m pytest tests -q
+          if ($LASTEXITCODE -ne 0) { throw 'SHWS integration regression failed' }
+      - name: Smoke-test both integrated tabs from source
+        shell: pwsh
+        timeout-minutes: 4
+        run: |
+          python main.py --smoke-test
+          if ($LASTEXITCODE -ne 0) { throw 'Unified source GUI smoke test failed' }
+      - name: Run original SHS regression tests in an isolated source directory
+        shell: pwsh
+        timeout-minutes: 12
+        run: |
+          Push-Location baseline_sources/SHS
+          try {
+            python -m pytest tests -q --tb=short --timeout=90 2>&1 | Tee-Object -FilePath ../../shs-pytest.txt
+            if ($LASTEXITCODE -ne 0) { throw 'Standalone SHS regression failure' }
+          } finally { Pop-Location }
+      - name: Run original Wizard regression tests in an isolated source directory
+        shell: pwsh
+        timeout-minutes: 20
+        run: |
+          Push-Location baseline_sources/SlimeWizard
+          try {
+            python -m pytest tests -q --tb=short --timeout=120 2>&1 | Tee-Object -FilePath ../../wizard-pytest.txt
+            if ($LASTEXITCODE -ne 0) { throw 'Standalone Wizard regression failure' }
+          } finally { Pop-Location }
+      - name: Upload test reports even if tests fail
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHWS-Build1-Windows-Test-Logs
+          path: |
+            shs-pytest.txt
+            wizard-pytest.txt
+          if-no-files-found: warn
+      - name: Build unified portable Qt EXE folder
+        shell: pwsh
+        timeout-minutes: 12
+        run: |
+          # -I avoids local packaging/ Python module shadowing PyInstaller dependency.
+          python -I -m PyInstaller --noconfirm --clean --onedir --windowed --name SlimeHouseWizardStudios --icon assets/slime_house_studios.ico --add-data 'assets;assets' --add-data 'shws_wizard/studio/assets;shws_wizard/studio/assets' main.py
+          if ($LASTEXITCODE -ne 0) { throw 'PyInstaller failed' }
+      - name: Smoke-test real packaged SHS and Wizard tabs
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $exe = (Resolve-Path 'dist/SlimeHouseWizardStudios/SlimeHouseWizardStudios.exe').Path
+          if (!(Test-Path 'dist/SlimeHouseWizardStudios/_internal')) { throw 'Missing bundled dependencies' }
+          $p = Start-Process -FilePath $exe -ArgumentList '--smoke-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Unified GUI startup failed: $($p.ExitCode)" }
+      - name: Package portable ZIP and checksum
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'dist/SlimeHouseWizardStudios' -DestinationPath 'SlimeHouseWizardStudios-Build1-Portable.zip' -Force
+          if (!(Test-Path 'SlimeHouseWizardStudios-Build1-Portable.zip')) { throw 'Portable ZIP missing' }
+          (Get-FileHash 'SlimeHouseWizardStudios-Build1-Portable.zip' -Algorithm SHA256).Hash.ToLowerInvariant() | Out-File -Encoding utf8 'SlimeHouseWizardStudios-Build1-Portable.sha256.txt'
+      - name: Build optional installer (includes uninstaller)
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        timeout-minutes: 12
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (!(Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+          if (!(Test-Path $iscc)) { throw 'Inno Setup compiler not available' }
+          & $iscc packaging/SHWS.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer compiler failed' }
+      - name: Verify install and silent uninstall
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        timeout-minutes: 5
+        run: |
+          $setup = (Resolve-Path 'installer-output/SlimeHouseWizardStudios-Build1-Setup.exe').Path
+          $installDir = Join-Path $env:RUNNER_TEMP 'SHWS_Build1_Test_Install'
+          $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installDir") -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "Installer returned $($p.ExitCode)" }
+          $exe = Join-Path $installDir 'SlimeHouseWizardStudios.exe'
+          $uninstaller = Join-Path $installDir 'unins000.exe'
+          if (!(Test-Path $exe) -or !(Test-Path $uninstaller)) { throw 'Installed EXE/uninstaller missing' }
+          $u = Start-Process -FilePath $uninstaller -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART') -PassThru -Wait
+          if ($u.ExitCode -ne 0) { throw "Uninstaller returned $($u.ExitCode)" }
+          if (Test-Path $exe) { throw 'EXE remains after uninstall' }
+      - name: Upload portable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: SLIME-HOUSE-WIZARD-STUDIOS-Build1-Portable-Windows
+          path: |
+            SlimeHouseWizardStudios-Build1-Portable.zip
+            SlimeHouseWizardStudios-Build1-Portable.sha256.txt
+          if-no-files-found: error
+      - name: Upload optional installer with uninstaller
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: SLIME-HOUSE-WIZARD-STUDIOS-Build1-Installer-Windows
+          path: installer-output/SlimeHouseWizardStudios-Build1-Setup.exe
+          if-no-files-found: error

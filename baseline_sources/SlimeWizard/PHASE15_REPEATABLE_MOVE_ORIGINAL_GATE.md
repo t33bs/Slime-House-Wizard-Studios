@@ -1,0 +1,5 @@
+# Phase 15 repeatable Move Original release gate
+
+Requirement: Highlight > Finish Selecting > transform > Apply Move can be repeated indefinitely on the same pixels, including pixels already in the Slimer overlay, without new timeline frames, pixel loss, alpha changes, or stale selections. Place Frame alone creates a new independent timeline pose; saved earlier poses must not mutate. Both Move Original (default ON) and Copy Pixels remain supported.
+
+Added `tests/test_phase15_endless_move_original_contract.py` to exercise four consecutive Move Original operations on the same semi-transparent pixel, followed by Place Frame. This is a deliberately strict integration regression and MUST pass on Windows before Phase 15 is called fixed. It is not marked expected-failure. In this environment PySide6 is unavailable, so this integration test is skipped, NOT verified. The current implementation's pose-overlay source provenance may still reject subsequent moves. No destructive safety check has been bypassed.

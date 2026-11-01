@@ -1,0 +1,13 @@
+Slime Wizard Phase95 candidate — Pose overwrite investigation
+
+A real manual bug remains: Pose 1 appears to turn into Pose 2. Previous 11 Windows GUI tests did not catch it.
+
+This package adds placement-time stored-pose/pixel integrity protection, a visible-timeline owner check, two new click-driven Windows GUI tests, and a read-only pose inspector. It is NOT accepted as fixed until manual Windows testing.
+
+From this extracted directory in PowerShell:
+
+& "$env:USERPROFILE\Downloads\DocumentsSlime-Wizard-Pre-Merge-Backup\.venv\Scripts\python.exe" -m pytest -q tests/test_phase95_actual_gui_place_frame.py tests/test_phase94_edit_selection_active_gui.py tests/test_phase93_pose_identity_gui.py tests/test_phase91_no_reference_gui.py tests/test_phase88_first_place_frame_gui.py tests/test_phase87_pose_merge_gui.py tests/test_phase86_repeat_alpha_gui.py
+
+Expected 13 passed. Manual test: make Pose 1 and Pose 2 obviously different; Place Frame for Pose 3; switch back; save/reopen. If the bug persists, send the project rig JSON plus its matching asset folder together as a ZIP (not just sheet PNG and export JSON).
+
+Do not test on your only copy. GitHub untouched.

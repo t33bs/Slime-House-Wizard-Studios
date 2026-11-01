@@ -1,0 +1,1 @@
+Phase 11: SHS edit/reload integration, oversized PNG fit prompt, original transparent static slime buddy, pixel dialogue box, wizard slime Windows icon. Reload requires SHS to save over the opened PNG. On Windows verify SHS supports file path command-line opening; otherwise SHS must be patched. Reference viewer upgrade and full guided workflow remain future work.\n
