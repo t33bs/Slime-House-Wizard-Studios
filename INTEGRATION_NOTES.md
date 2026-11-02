@@ -32,3 +32,5 @@ Added only `MainWindow.sample_reference_at` on SHS and read-only input/mapping
 to `studio.reference_viewer`; the reference window is now a sampling surface
 for Eyedropper and Chameleon, never a writable canvas. Existing Wizard
 source, pose ownership, project saving, and APNG exports are untouched.
+
+Build 1.9.7: Export All Frames naming cleanup limited to Wizard UI export action, individual frames exporter filename generation, and new isolated name helper. No changes to save, timelines, Cleaner, APNG, SHS or Slime Buddy.

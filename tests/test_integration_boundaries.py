@@ -69,9 +69,9 @@ def test_wizard_has_independent_module_namespace():
 def test_wizard_models_same_logic_as_original():
     for p in (ROOT/'shws_wizard'/'studio').rglob('*.py'):
         original=ROOT/'baseline_sources'/'SlimeWizard'/'studio'/p.relative_to(ROOT/'shws_wizard'/'studio')
-        if p.name in ('asset_hit_test.py', 'export_diagnostics.py', 'json_animation_import.py'):
+        if p.name in ('asset_hit_test.py', 'export_diagnostics.py', 'json_animation_import.py', 'frame_export_naming.py'):
             # Additive, isolated helpers: visible-pixel hit tests, optional
-            # export diagnostics, and non-destructive JSON animation import.
+            # export diagnostics, JSON animation import, and file naming.
             # All other original Wizard modules stay protected.
             assert not original.exists()
             continue
@@ -80,7 +80,8 @@ def test_wizard_models_same_logic_as_original():
         actual=p.read_text(encoding='utf8')
         if p.name in ('pet_suite_model.py', 'project_validation.py'):
             # Build1.1 explicitly adds unplaced-next-pose persistence to these
-            # two Wizard modules. Verify every OTHER existing function stays
+            # two Wizard modules; Build 1.9.7 also changes only the individual
+            # frame export filename method. Every OTHER method stays
             # AST-identical to the approved standalone baseline.
             before=ast.parse(expected)
             after=ast.parse(actual)
@@ -91,7 +92,8 @@ def test_wizard_models_same_logic_as_original():
                         found[node.name]=ast.dump(node,include_attributes=False)
                 return found
             b,a=methods(before),methods(after)
-            allowed=({'__init__','save_project','load_project','content_fingerprint'}
+            allowed=({'__init__','save_project','load_project','content_fingerprint',
+                          'export_individual_frames'}
                      if p.name=='pet_suite_model.py' else {'validate_project_data'})
             for name in b:
                 if name not in allowed:

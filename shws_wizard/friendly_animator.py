@@ -20,6 +20,7 @@ from shws_wizard.studio.viewport_handles import visible_handle_position
 from shws_wizard.studio.asset_hit_test import choose_drag_layer
 from shws_wizard.studio.timeline_tools import timeline_summary, onion_composite
 from shws_wizard.studio.pet_suite_model import PetSuiteModel
+from shws_wizard.studio.frame_export_naming import prefix_from_frame_manifest_choice
 from shws_wizard.studio.edit_history import EditHistory
 from shws_wizard.studio.slimer_tool import SlimerSelection, composite_selection_layers
 from shws_wizard.studio.animation_registry import available_animation_names, preferred_animation
@@ -4028,25 +4029,26 @@ class Suite(QMainWindow):
         name=self.anim.currentText()
         poses=self.model.animations.get(name,[])
         pose=poses[self.frame] if 0<=self.frame<len(poses) else None
-        filename,_=QFileDialog.getSaveFileName(self,'Export current frame as transparent PNG',f'friendly_frame_{self.frame+1}.png','PNG images (*.png)')
+        filename,_=QFileDialog.getSaveFileName(self,'Export current frame as transparent PNG',f'creature_frame_{self.frame+1:04d}.png','PNG images (*.png)')
         if filename:
             self.model.render(pose).save(filename,'PNG')
             self.status.setText('Exported transparent frame PNG for editing in Slime House Studios.')
 
     def export_all_frames(self):
-        """Save every timeline pose as a transparent PNG with timing JSON."""
+        """Export PNGs under a chosen prefix, never an old project/reference title."""
         filename,_=QFileDialog.getSaveFileName(
-            self,'Export all animation frames', 'friendly_frames',
-            'Frame set base name (*)')
+            self, 'Name exported frame set', 'creature_frames.json',
+            'Animation frame manifest (*.json)')
         if not filename:
             return
         destination=Path(filename)
         try:
-            images, metadata=self.model.export_individual_frames(destination.parent, destination.stem)
+            basename=prefix_from_frame_manifest_choice(str(destination))
+            images, metadata=self.model.export_individual_frames(destination.parent, basename)
         except (OSError, ValueError) as exc:
             QMessageBox.warning(self,'Could not export frames',str(exc))
             return
-        self.status.setText(f'Exported {len(images)} transparent pose PNGs and {metadata.name}.')
+        self.status.setText(f'Exported {len(images)} PNG frames named {basename}_frame_####.png and {metadata.name}.')
 
     def choose_shs_location(self):
         """Let the user choose the installed or portable SHS .exe once."""

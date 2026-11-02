@@ -16,6 +16,7 @@ from copy import deepcopy
 from pathlib import Path
 from PIL import Image
 from .creature_rig import CreatureRig
+from .frame_export_naming import normalize_frame_export_prefix, numbered_frame_name
 
 class PetSuiteModel(CreatureRig):
     def __init__(self, size=(128, 128)):
@@ -760,22 +761,19 @@ class PetSuiteModel(CreatureRig):
         return png_path
 
     def export_individual_frames(self, folder, basename='creature'):
-        """Export independent transparent PNGs and their pose timing metadata."""
+        """Export ordered PNG frames using ONLY the user-selected name prefix.
+
+        The output is `<name>_frame_0001.png`, `<name>_frame_0002.png`, ...
+        across animations.  Animation titles and timings remain in the companion
+        JSON manifest so an exported frame set can be reimported correctly.
+        Source/project/reference names never appear in frame filenames.
+        """
         folder = Path(folder)
+        basename = normalize_frame_export_prefix(basename)
         entries = []
-        used = set()
         for animation, poses in self.animations.items():
-            if not poses:
-                continue
-            safe = ''.join(ch if ch.isalnum() or ch in '-_' else '_' for ch in animation).strip('_') or 'animation'
-            unique = safe
-            suffix = 2
-            while unique.casefold() in used:
-                unique = f'{safe}_{suffix}'
-                suffix += 1
-            used.add(unique.casefold())
             for index, pose in enumerate(poses):
-                name = f'{basename}_{unique}_{index+1:04d}.png'
+                name = numbered_frame_name(basename, len(entries) + 1)
                 entries.append((name, self.render(pose).convert('RGBA'), animation, index))
         if not entries:
             raise ValueError('Add and save at least one animation pose before exporting.')

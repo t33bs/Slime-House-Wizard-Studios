@@ -1,4 +1,4 @@
-# SLIME HOUSE WIZARD STUDIOS — Build 1.9.6
+# SLIME HOUSE WIZARD STUDIOS — Build 1.9.7
 
 **One Windows application, two native editing workspaces.** This is an **integration candidate**, not a certified release until the Windows GitHub Actions tests and user acceptance tests pass.
 
@@ -32,9 +32,9 @@ This source ZIP is meant to be uploaded as the contents of a **new independent G
 
 1. Create the new `SLIME-HOUSE-WIZARD-STUDIOS` repository.
 2. Extract this ZIP into a **fresh folder**, then commit and push the folder's *contents*. Do not upload the ZIP itself and do not overwrite the old repositories.
-3. Open GitHub **Actions → SHWS Build 1.9.6 - Windows portable and optional installer**.
+3. Open GitHub **Actions → SHWS Build 1.9.7 - Windows portable and optional installer**.
 4. Wait for Windows test/smoke validation. **A green run is required** before sharing an EXE.
-5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build196-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build196-Installer-Windows** from the successful run's Artifacts.
+5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build197-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build197-Installer-Windows** from the successful run's Artifacts.
 
 The portable ZIP runs without installation once extracted. The optional installer creates Start Menu shortcuts and an optional desktop shortcut. **Uninstall removes app files and shortcuts, not saved user projects in home directories.**
 
@@ -204,3 +204,7 @@ unprompted. This update does not touch the APNG export or SHS references.
 - New integration tests cover multi-pose legacy JSON recovery, missing/invalid PNG safeguards, sheet and frame-list import, Save As, and a Windows Qt timeline-click test. This source still needs Windows GitHub Actions validation.
 
 See `BUILD196_PLAIN_JSON_REOPEN_AND_ANIMATION_IMPORT.md`.
+
+## Build 1.9.7 — Export All Frames uses your chosen filenames
+
+The obsolete `friendly_frames` dialog default is removed. Enter `MyAnimation_frames.json` to export `MyAnimation_frame_0001.png` etc. The filenames never inherit imported project/reference names or animation labels; the JSON manifest retains pose timing and animation group labels for correct reimport. The single-frame PNG default also no longer uses `friendly_`. See `BUILD197_EXPORT_ALL_FRAMES_NAMING.md`.

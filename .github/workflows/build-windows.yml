@@ -1,4 +1,4 @@
-name: SHWS Build 1.9.6 - Windows portable and optional installer
+name: SHWS Build 1.9.7 - Windows portable and optional installer
 
 on:
   workflow_dispatch:
@@ -63,7 +63,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: SHWS-Build196-Windows-Test-Logs
+          name: SHWS-Build197-Windows-Test-Logs
           path: |
             shs-pytest.txt
             wizard-pytest.txt
@@ -86,9 +86,9 @@ jobs:
       - name: Package portable ZIP and checksum
         shell: pwsh
         run: |
-          Compress-Archive -Path 'dist/SlimeHouseWizardStudios' -DestinationPath 'SlimeHouseWizardStudios-Build196-Portable.zip' -Force
-          if (!(Test-Path 'SlimeHouseWizardStudios-Build196-Portable.zip')) { throw 'Portable ZIP missing' }
-          (Get-FileHash 'SlimeHouseWizardStudios-Build196-Portable.zip' -Algorithm SHA256).Hash.ToLowerInvariant() | Out-File -Encoding utf8 'SlimeHouseWizardStudios-Build196-Portable.sha256.txt'
+          Compress-Archive -Path 'dist/SlimeHouseWizardStudios' -DestinationPath 'SlimeHouseWizardStudios-Build197-Portable.zip' -Force
+          if (!(Test-Path 'SlimeHouseWizardStudios-Build197-Portable.zip')) { throw 'Portable ZIP missing' }
+          (Get-FileHash 'SlimeHouseWizardStudios-Build197-Portable.zip' -Algorithm SHA256).Hash.ToLowerInvariant() | Out-File -Encoding utf8 'SlimeHouseWizardStudios-Build197-Portable.sha256.txt'
       - name: Build optional installer (includes uninstaller)
         if: github.event_name != 'pull_request'
         shell: pwsh
@@ -104,8 +104,8 @@ jobs:
         shell: pwsh
         timeout-minutes: 5
         run: |
-          $setup = (Resolve-Path 'installer-output/SlimeHouseWizardStudios-Build196-Setup.exe').Path
-          $installDir = Join-Path $env:RUNNER_TEMP 'SHWS_Build196_Test_Install'
+          $setup = (Resolve-Path 'installer-output/SlimeHouseWizardStudios-Build197-Setup.exe').Path
+          $installDir = Join-Path $env:RUNNER_TEMP 'SHWS_Build197_Test_Install'
           $p = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$installDir") -PassThru -Wait
           if ($p.ExitCode -ne 0) { throw "Installer returned $($p.ExitCode)" }
           $exe = Join-Path $installDir 'SlimeHouseWizardStudios.exe'
@@ -117,15 +117,15 @@ jobs:
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: SLIME-HOUSE-WIZARD-STUDIOS-Build196-Portable-Windows
+          name: SLIME-HOUSE-WIZARD-STUDIOS-Build197-Portable-Windows
           path: |
-            SlimeHouseWizardStudios-Build196-Portable.zip
-            SlimeHouseWizardStudios-Build196-Portable.sha256.txt
+            SlimeHouseWizardStudios-Build197-Portable.zip
+            SlimeHouseWizardStudios-Build197-Portable.sha256.txt
           if-no-files-found: error
       - name: Upload optional installer with uninstaller
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: SLIME-HOUSE-WIZARD-STUDIOS-Build196-Installer-Windows
-          path: installer-output/SlimeHouseWizardStudios-Build196-Setup.exe
+          name: SLIME-HOUSE-WIZARD-STUDIOS-Build197-Installer-Windows
+          path: installer-output/SlimeHouseWizardStudios-Build197-Setup.exe
           if-no-files-found: error
