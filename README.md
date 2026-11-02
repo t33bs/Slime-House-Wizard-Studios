@@ -1,4 +1,4 @@
-# SLIME HOUSE WIZARD STUDIOS — Build 1.9.3
+# SLIME HOUSE WIZARD STUDIOS — Build 1.9.4
 
 **One Windows application, two native editing workspaces.** This is an **integration candidate**, not a certified release until the Windows GitHub Actions tests and user acceptance tests pass.
 
@@ -32,9 +32,9 @@ This source ZIP is meant to be uploaded as the contents of a **new independent G
 
 1. Create the new `SLIME-HOUSE-WIZARD-STUDIOS` repository.
 2. Extract this ZIP into a **fresh folder**, then commit and push the folder's *contents*. Do not upload the ZIP itself and do not overwrite the old repositories.
-3. Open GitHub **Actions → SHWS Build 1.9.3 - Windows portable and optional installer**.
+3. Open GitHub **Actions → SHWS Build 1.9.4 - Windows portable and optional installer**.
 4. Wait for Windows test/smoke validation. **A green run is required** before sharing an EXE.
-5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build193-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build193-Installer-Windows** from the successful run's Artifacts.
+5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build194-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build194-Installer-Windows** from the successful run's Artifacts.
 
 The portable ZIP runs without installation once extracted. The optional installer creates Start Menu shortcuts and an optional desktop shortcut. **Uninstall removes app files and shortcuts, not saved user projects in home directories.**
 
@@ -148,3 +148,25 @@ and the previously approved Chameleon re-activation reset is preserved.
 
 See `BUILD193_REFERENCE_EYEDROPPER_CHAMELEON.md` for exact usage and
 Windows acceptance tests.
+
+
+## Build 1.9.4 — Slime Cleaner timeline isolation and long-session stability
+
+Cleaner edits to a selected saved pose now remain owned by that pose: no automatic
+`_next_pose_capture_pending` state is created. A genuine *existing* unplaced
+Slimer draft still stays pending. Canvas/timeline pose IDs are checked before
+an erase. A click on empty or transparent space creates no Undo history entry
+and avoids an expensive preview refresh. Each actual stroke creates at most
+one Undo record, right before its first real pixel mutation. Undo/Redo clears
+stale transient next-pose flags and reloads the chosen snapshot.
+
+Windows verification: create 8+ visually distinct saved poses, select pose 7,
+activate Cleaner and erase one pixel, switch to poses 1, 3, 8 and back; all
+canvas and thumbnail images must match their pose. Undo must recover the pixel
+and not lock the canvas into the previous pose. Try 20+ Cleaner strokes, with
+some transparent clicks, then navigate and save/reopen. Confirm Slimer's
+intentional unplaced-next-pose mode still needs Place Frame. Keep a backup
+of the original creature/asset folder until the portable build passes.
+
+Do not treat independent shadow/particle pixels as errors or erase them
+unprompted. This update does not touch the APNG export or SHS references.

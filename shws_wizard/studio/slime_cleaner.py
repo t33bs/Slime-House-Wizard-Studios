@@ -42,14 +42,15 @@ def _rotated_source_lookup(part, state, canvas_size):
 
 
 def erase_visible_pixels(parts, x, y, brush_size=1, *, states=None,
-                         canvas_size=None, modified_indices=None):
+                         canvas_size=None, modified_indices=None,
+                         before_first_change=None):
     """Erase only the topmost *visible* source pixel at each brush coordinate.
 
     Hidden and lower-layer pixels remain intact, even when multiple layers
     overlap. ``states`` may include resolved x/y/angle/_cleaner_anchor from the
-    active pose. ``modified_indices`` records which actual sources to sync back
-    into the renderer's immutable snapshots. No state or artwork is changed if
-    the brush misses visible pixels.
+    active pose. ``modified_indices`` records changed source indices.
+    ``before_first_change`` runs exactly once just before the first mutation,
+    letting callers create a single Undo record without saving empty strokes.
     """
     size = max(1, int(brush_size))
     start = -(size // 2)
@@ -91,6 +92,8 @@ def erase_visible_pixels(parts, x, y, brush_size=1, *, states=None,
                     continue
                 if image.getpixel((px, py))[3] == 0:
                     continue
+                if not changed and before_first_change is not None:
+                    before_first_change()
                 image.putpixel((px, py), (0, 0, 0, 0))
                 changed = True
                 if modified_indices is not None:

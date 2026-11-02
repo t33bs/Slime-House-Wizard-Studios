@@ -97,7 +97,7 @@ class SlimeHouseWizardStudios(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setObjectName('slimeHouseWizardStudios')
-        self.setWindowTitle('SLIME HOUSE WIZARD STUDIOS — Build 1.9.3')
+        self.setWindowTitle('SLIME HOUSE WIZARD STUDIOS — Build 1.9.4')
         self.setWindowIcon(QIcon(str(resource_path('assets/slime_mascot.png'))))
         self.resize(1500, 900)
         self.setMinimumSize(900, 600)

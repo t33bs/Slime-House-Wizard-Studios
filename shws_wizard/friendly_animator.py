@@ -124,6 +124,7 @@ class DragCanvas(QLabel):
     view_changed=Signal()
     cleaner_stroke=Signal(int,int)
     cleaner_stroke_start=Signal()
+    cleaner_stroke_end=Signal()
     slimer_stroke=Signal(int,int,bool)
     slimer_stroke_start=Signal()
     slimer_drag=Signal(int,int,str)
@@ -531,7 +532,7 @@ class DragCanvas(QLabel):
                 self._last=(self._last[0]+dx,self._last[1]+dy)
         super().mouseMoveEvent(event)
     def mouseReleaseEvent(self,event):
-        self._last=None;self._action=None;self._pan_last=None;self._slimer_painting=False;self._cleaner_painting=False;self._slimer_last=None;self._slimer_handle=None;self.slimer_drag_end.emit();super().mouseReleaseEvent(event)
+        self._last=None;self._action=None;self._pan_last=None;self._slimer_painting=False;self._cleaner_painting=False;self._slimer_last=None;self._slimer_handle=None;self.cleaner_stroke_end.emit();self.slimer_drag_end.emit();super().mouseReleaseEvent(event)
 
 class UpdateCheckWorker(QThread):
     result = Signal(object, str)
@@ -824,7 +825,7 @@ class Suite(QMainWindow):
         self.buddy_toggle.toggled.connect(lambda enabled:self.settings.setValue('slime_buddy_enabled',enabled))
         self.refresh_buddy()
         canvas_title=QLabel('✦ BUILD YOUR POSE  •  Drag parts on the canvas');canvas_title.setObjectName('pixelCanvasHeading');canvas_title.setProperty('uiRole','sectionTitle');ml.addWidget(canvas_title)
-        self.canvas=DragCanvas();self.canvas.model_pixel_hit=self._canvas_model_pixel_hit;self.canvas.handle_layer_picker.currentIndexChanged.connect(self.assets.setCurrentRow);self.canvas.handle_mode_picker.currentIndexChanged.connect(lambda _index: self._refresh_active_layer_label());self.canvas.cleaner_stroke.connect(self.cleaner_paint);self.canvas.cleaner_stroke_start.connect(self.cleaner_start_stroke);self.canvas.slimer_stroke.connect(self.slimer_paint);self.canvas.slimer_stroke_start.connect(self.slimer_start_stroke);self.canvas.slimer_drag.connect(self.slimer_drag_transform);self.canvas.slimer_drag_start.connect(self.slimer_start_transform);self.canvas.slimer_drag_end.connect(self.slimer_end_transform);self.canvas.moved.connect(self.drag_part);self.canvas.resized.connect(self.resize_drag);self.canvas.picked.connect(self.assets.setCurrentRow);self.canvas.anchor_chosen.connect(self.place_anchor);self.canvas.angle_chosen.connect(self.turn_part);self.canvas.setMinimumHeight(205);self.canvas.setObjectName('pixelMainCanvas');self.canvas.setStyleSheet('background:#161c38;border:2px solid #6986c7;border-radius:5px;');ml.addWidget(self.canvas,1);self.canvas.setToolTip('Expand Transform handles on the canvas to select a layer and one X, Y, Rotation, or Resize handle. Edit Selection enables or disables the chosen handle.')
+        self.canvas=DragCanvas();self.canvas.model_pixel_hit=self._canvas_model_pixel_hit;self.canvas.handle_layer_picker.currentIndexChanged.connect(self.assets.setCurrentRow);self.canvas.handle_mode_picker.currentIndexChanged.connect(lambda _index: self._refresh_active_layer_label());self.canvas.cleaner_stroke.connect(self.cleaner_paint);self.canvas.cleaner_stroke_start.connect(self.cleaner_start_stroke);self.canvas.cleaner_stroke_end.connect(self.cleaner_end_stroke);self.canvas.slimer_stroke.connect(self.slimer_paint);self.canvas.slimer_stroke_start.connect(self.slimer_start_stroke);self.canvas.slimer_drag.connect(self.slimer_drag_transform);self.canvas.slimer_drag_start.connect(self.slimer_start_transform);self.canvas.slimer_drag_end.connect(self.slimer_end_transform);self.canvas.moved.connect(self.drag_part);self.canvas.resized.connect(self.resize_drag);self.canvas.picked.connect(self.assets.setCurrentRow);self.canvas.anchor_chosen.connect(self.place_anchor);self.canvas.angle_chosen.connect(self.turn_part);self.canvas.setMinimumHeight(205);self.canvas.setObjectName('pixelMainCanvas');self.canvas.setStyleSheet('background:#161c38;border:2px solid #6986c7;border-radius:5px;');ml.addWidget(self.canvas,1);self.canvas.setToolTip('Expand Transform handles on the canvas to select a layer and one X, Y, Rotation, or Resize handle. Edit Selection enables or disables the chosen handle.')
         nav=QHBoxLayout();ml.addLayout(nav)
         canvas_nav_title=QLabel('Canvas view:');canvas_nav_title.setObjectName('pixelCanvasNavLabel');nav.addWidget(canvas_nav_title)
         fit=QPushButton('Fit to Canvas');fit.setObjectName('pixelCanvasFitButton');fit.setToolTip('Show the whole creature again (does not resize your artwork).');fit.clicked.connect(self.canvas.reset_view);nav.addWidget(fit)
@@ -1470,24 +1471,55 @@ class Suite(QMainWindow):
         self.refresh()
 
     def cleaner_start_stroke(self):
-        self.remember()  # One undo snapshot for the complete brush stroke.
+        """Arm a stroke, but allocate Undo only on the FIRST real pixel erase.
+
+        Cleaner's transparent/empty clicks must not fill the bounded undo
+        history with huge full-project snapshots during long portable sessions.
+        The target must be the verified selected pose (or its already pending
+        next-pose draft), never whatever canvas happens to be displayed.
+        """
+        self._cleaner_stroke_recorded = False
+        self._cleaner_stroke_blocked = not self._canvas_owns_selected_pose(self.anim.currentText())
+        if self._cleaner_stroke_blocked:
+            self.status.setText('Cleaner blocked: canvas/timeline pose identity mismatch. Reselect the intended frame; no pixels erased.')
+
+    def cleaner_end_stroke(self):
+        self._cleaner_stroke_recorded = False
+        self._cleaner_stroke_blocked = False
+
+    def _cleaner_record_first_change(self):
+        """Called before the first pixel is actually erased."""
+        if not getattr(self, '_cleaner_stroke_recorded', False):
+            self.remember()
+            self._cleaner_stroke_recorded = True
 
     def cleaner_paint(self,x,y):
+        if getattr(self, '_cleaner_stroke_blocked', False):
+            return
+        # Direct calls also require ownership checks: a stale canvas cannot
+        # erase pixels for a newly selected timeline thumbnail.
+        if not self._canvas_owns_selected_pose(self.anim.currentText()):
+            return
         from shws_wizard.studio.slime_cleaner import erase_visible_pixels
         modified=set()
         changed=erase_visible_pixels(
             self.model.parts,x,y,self.cleaner_brush.value(),
             states=self._cleaner_resolved_states(),canvas_size=self.model.size,
-            modified_indices=modified)
+            modified_indices=modified,
+            before_first_change=self._cleaner_record_first_change)
         if changed:
-            # Only changed sources are rewritten. The inactive source layers
-            # of other poses retain their exact RGBA snapshots.
+            # Copy-on-write: snapshots of OTHER poses remain unchanged.
             for index in modified:
                 self.model.originals[index]=self.model.parts[index]['image'].copy()
             self.mark_pose_draft()
-            if self.model.animations.get(self.anim.currentText()):
-                self._next_pose_capture_pending=True
-        self.refresh()
+            # IMPORTANT: Cleaning a SAVED pose is an ordinary pose-local edit,
+            # not a new unplaced frame.  Setting next-pose pending here used to
+            # block every later timeline click and made every canvas appear
+            # to show the same pose until Undo.  If a genuine Slimer draft was
+            # already pending, leave that flag unchanged.
+            self.refresh()
+        # Empty or transparent strokes do not trigger expensive render/preview
+        # refreshes, which otherwise pile up during long drawing sessions.
 
     def _cleaner_resolved_states(self):
         """Keep Slime Cleaner aligned with renderer rotation/parent attachments."""
@@ -2898,6 +2930,12 @@ class Suite(QMainWindow):
         # refers to pixels from before Undo/Redo and must not survive that swap.
         self._pose_draft_key = None
         self._pose_draft_dirty = False
+        # Undo restores saved model poses; a transient Cleaner/Slimer next-pose
+        # flag from the *previous* canvas must never block loading these poses.
+        self._next_pose_capture_pending = False
+        self.model.unplaced_next_pose = None
+        self._cleaner_stroke_recorded = False
+        self._cleaner_stroke_blocked = False
         self._reset_slimer_for_project_change()
         # Undo/Redo can restore an animation name that did not exist when the
         # selector was last populated. Ensure the entry exists before selecting.

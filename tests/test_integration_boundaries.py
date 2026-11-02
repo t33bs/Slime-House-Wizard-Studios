@@ -103,6 +103,20 @@ def test_wizard_models_same_logic_as_original():
             extra=actual[len(expected):]
             assert 'BUILD13_CANVAS_TIMELINE_QSS' in extra
             assert extra.strip().endswith('PIXEL_THEME_QSS += BUILD13_CANVAS_TIMELINE_QSS')
+        elif p.name == 'slime_cleaner.py':
+            # Build 1.9.4 changes only the existing erase function to call
+            # a BEFORE-FIRST-CHANGE callback for lazy Undo snapshot capture.
+            # Its source-pixel lookup and all other modules remain protected.
+            b=ast.parse(expected)
+            a=ast.parse(actual)
+            names_before={node.name:ast.dump(node,include_attributes=False)
+                          for node in ast.walk(b) if isinstance(node, ast.FunctionDef)}
+            names_after={node.name:ast.dump(node,include_attributes=False)
+                         for node in ast.walk(a) if isinstance(node, ast.FunctionDef)}
+            assert names_before.keys()==names_after.keys()
+            assert all(names_before[n]==names_after[n] for n in names_before if n!='erase_visible_pixels')
+            assert 'before_first_change' in actual
+            assert 'if not changed and before_first_change is not None:' in actual
         elif p.name == 'apng_export.py':
             # Build 1.9.1 uses full-frame SOURCE replacement and verifies
             # decoded RGBA before atomically publishing an APNG.
