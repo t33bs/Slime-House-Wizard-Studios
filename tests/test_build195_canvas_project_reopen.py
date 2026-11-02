@@ -98,5 +98,5 @@ def test_ambiguous_or_bad_size_is_safely_rejected(value):
 
 def test_open_dialog_prefers_real_rig_json_and_retains_legacy_files():
     src = (Path(__file__).resolve().parents[1] / 'shws_wizard' / 'friendly_animator.py').read_text()
-    assert 'Editable creature project (*.rig.json)' in src
-    assert 'Legacy creature JSON (*.json)' in src
+    assert 'Creature or animation JSON (*.rig.json *.json)' in src
+    assert 'Editable rig project (*.rig.json)' in src

@@ -69,9 +69,10 @@ def test_wizard_has_independent_module_namespace():
 def test_wizard_models_same_logic_as_original():
     for p in (ROOT/'shws_wizard'/'studio').rglob('*.py'):
         original=ROOT/'baseline_sources'/'SlimeWizard'/'studio'/p.relative_to(ROOT/'shws_wizard'/'studio')
-        if p.name in ('asset_hit_test.py', 'export_diagnostics.py'):
-            # Build 1.4 adds one pure, isolated hit-test helper; all original
-            # Wizard model modules remain protected by their baseline checks.
+        if p.name in ('asset_hit_test.py', 'export_diagnostics.py', 'json_animation_import.py'):
+            # Additive, isolated helpers: visible-pixel hit tests, optional
+            # export diagnostics, and non-destructive JSON animation import.
+            # All other original Wizard modules stay protected.
             assert not original.exists()
             continue
         assert original.exists()

@@ -4614,7 +4614,7 @@ class Suite(QMainWindow):
     def open_project(self):
         path,_=QFileDialog.getOpenFileName(
             self, 'Open creature — editable rig project', '',
-            'Editable creature project (*.rig.json);;Legacy creature JSON (*.json)')
+            'Creature or animation JSON (*.rig.json *.json);;Editable rig project (*.rig.json)')
         if path:
             try:
                 resolved=str(Path(path).resolve())
@@ -4623,9 +4623,21 @@ class Suite(QMainWindow):
                         self.select_workspace_key(('project',next(k[1] for k in self._workspace_tab_keys if k[0]=='project' and k[1].startswith(f'{pid}::'))))
                         self.status.setText('That creature is already open; switched to its tab.')
                         return
-                model=PetSuiteModel.load_project(path)
-                self.add_project(model,Path(path).stem,path)
-                self.status.setText(f'Opened {path} in a new project tab')
+                # Both editable rigs and exported animations may end with .json.
+                # Animation manifests have no source rig layers; import their
+                # companion PNG(s) into independent paintable timeline poses.
+                import json
+                from shws_wizard.studio.json_animation_import import (is_animation_manifest,
+                    import_animation_manifest)
+                manifest=json.loads(Path(path).read_text(encoding='utf-8'))
+                if is_animation_manifest(manifest):
+                    model=import_animation_manifest(path,manifest)
+                    self.add_project(model,Path(path).stem+' (imported animation)')
+                    self.status.setText(f'Imported {path}: one editable paintable layer per frame (not original rig layers). Use Save Creature As for a .rig.json.')
+                else:
+                    model=PetSuiteModel.load_project(path)
+                    self.add_project(model,Path(path).stem,path)
+                    self.status.setText(f'Opened {path} in a new project tab')
             except Exception as e:QMessageBox.warning(self,'Open failed',str(e))
     def export(self):
         if getattr(self, '_slimer_pending_part', None) is not None:

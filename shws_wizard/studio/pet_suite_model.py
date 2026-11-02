@@ -3,6 +3,7 @@
 Frame poses contain per-frame geometry. Source PNGs are preserved separately.
 """
 import base64
+import binascii
 import io
 import json
 import math
@@ -639,26 +640,54 @@ class PetSuiteModel(CreatureRig):
     @classmethod
     def load_project(cls, path):
         path = Path(path)
-        from .project_recovery import require_project_assets
+        from .project_recovery import diagnose_project_assets, require_project_assets
         from .project_validation import validate_project_file
         data = validate_project_file(path)
-        require_project_assets(path)
-        from .project_png_validation import validate_project_pngs
-        validate_project_pngs(path, data)
-        model = cls(data['size'])
-        folder_name = data.get('asset_dir')
-        if folder_name is not None:
-            if (not isinstance(folder_name, str) or Path(folder_name).name != folder_name
-                    or folder_name in ('.', '..')):
-                raise ValueError('Invalid project asset directory')
-        folder = path.parent / folder_name if folder_name else path.with_suffix('')
+        report = diagnose_project_assets(path)
+        missing = bool(report['missing'])
+        if not missing:
+            # Keep the established full-PNG integrity checks on ordinary rigs.
+            from .project_png_validation import validate_project_pngs
+            validate_project_pngs(path, data)
+        elif any(not isinstance(state.get('source_png'), str) or not state['source_png']
+                 for i, state in enumerate(data['parts'])
+                 if not (report['asset_folder'] / f'original_{i:03d}.png').is_file()
+                 and not (report['asset_folder'] / f'part_{i:03d}.png').is_file()):
+            # Legacy JSONs may embed original artwork, but missing actual
+            # artwork with NO embedded fallback must still fail safely.
+            require_project_assets(path)
+        folder = report['asset_folder']
+        # Decode all sources before creating any model state; never write to
+        # an original project or reconstruct a missing folder during Open.
+        images = []
         for i, state in enumerate(data['parts']):
             original_path = folder / f'original_{i:03d}.png'
-            if not original_path.exists():
-                original_path = folder / f'part_{i:03d}.png'  # v0.1 compatibility
-            with Image.open(original_path) as image:
-                model.import_part(state['name'], image,
-                                  state.get('width', image.width), state.get('height', image.height))
+            if not original_path.is_file():
+                original_path = folder / f'part_{i:03d}.png'
+            if original_path.is_file():
+                with Image.open(original_path) as image:
+                    if image.format != 'PNG':
+                        raise ValueError(f'Invalid project artwork: {original_path.name} is not a PNG.')
+                    image.load()
+                    images.append(image.convert('RGBA').copy())
+            else:
+                encoded = state['source_png']
+                if len(encoded) > 48 * 1024 * 1024:
+                    raise ValueError(f'Embedded artwork for part {i+1} exceeds the safe import limit.')
+                try:
+                    raw = base64.b64decode(encoded, validate=True)
+                    with Image.open(io.BytesIO(raw)) as image:
+                        if image.format != 'PNG':
+                            raise ValueError('Embedded artwork is not PNG.')
+                        image.load()
+                        images.append(image.convert('RGBA').copy())
+                except (ValueError, OSError, binascii.Error) as exc:
+                    raise ValueError(f'Cannot open creature: embedded PNG artwork for part {i+1} '
+                                     'is damaged. The project was not changed.') from exc
+        model = cls(data['size'])
+        for state, image in zip(data['parts'], images):
+            model.import_part(state['name'], image,
+                              state.get('width', image.width), state.get('height', image.height))
             model.parts[-1]['x'] = int(state['x'])
             model.parts[-1]['y'] = int(state['y'])
             model.parts[-1]['visible'] = state.get('visible', True)

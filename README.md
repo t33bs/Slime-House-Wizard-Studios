@@ -1,4 +1,4 @@
-# SLIME HOUSE WIZARD STUDIOS — Build 1.9.5
+# SLIME HOUSE WIZARD STUDIOS — Build 1.9.6
 
 **One Windows application, two native editing workspaces.** This is an **integration candidate**, not a certified release until the Windows GitHub Actions tests and user acceptance tests pass.
 
@@ -32,9 +32,9 @@ This source ZIP is meant to be uploaded as the contents of a **new independent G
 
 1. Create the new `SLIME-HOUSE-WIZARD-STUDIOS` repository.
 2. Extract this ZIP into a **fresh folder**, then commit and push the folder's *contents*. Do not upload the ZIP itself and do not overwrite the old repositories.
-3. Open GitHub **Actions → SHWS Build 1.9.5 - Windows portable and optional installer**.
+3. Open GitHub **Actions → SHWS Build 1.9.6 - Windows portable and optional installer**.
 4. Wait for Windows test/smoke validation. **A green run is required** before sharing an EXE.
-5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build195-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build195-Installer-Windows** from the successful run's Artifacts.
+5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build196-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build196-Installer-Windows** from the successful run's Artifacts.
 
 The portable ZIP runs without installation once extracted. The optional installer creates Start Menu shortcuts and an optional desktop shortcut. **Uninstall removes app files and shortcuts, not saved user projects in home directories.**
 
@@ -192,3 +192,15 @@ unprompted. This update does not touch the APNG export or SHS references.
 - Tests cover 64², 128², 256², 512², 1024² and non-square 96×160,
   512×128; they verify pose IDs, timing, RGBA render equality and
   unchanged source bytes. Windows Qt GUI open/resize tests included.
+
+
+## Build 1.9.6 — Open plain JSON rigs and animation exports
+
+- **Open Creature** now displays both `.rig.json` and ordinary `.json` by default, without changing the working native rig loader.
+- Real legacy creature `.json` manifests with embedded `parts[].source_png` can reopen even if their separate `_assets_...` folder is missing, provided all missing PNGs have valid embedded copies. Existing PNG files remain authoritative; corrupt existing files do not silently get replaced.
+- `*_sheet.json` paired with `*_sheet.png`, and frame-list `*_frames.json` paired with each recorded PNG, import as a NEW **unsaved** creature timeline, using full-canvas independently editable pixels per frame. Frame count, 2D canvas dimensions, animation names, durations and distinct pose IDs are maintained. This is a flattened frame import; it cannot restore original separate body-part rig layers that were not saved in the export.
+- Import and Open never modify the original JSON or PNGs; click **Save Creature As** to save a new canonical `.rig.json` + assets folder. Missing companion PNGs and malformed JSON/rectangles fail without changing an open creature.
+- The Build 1.9.5 restriction against importing `*_sheet.json` is superseded here by a safe actual PNG-backed frame importer.
+- New integration tests cover multi-pose legacy JSON recovery, missing/invalid PNG safeguards, sheet and frame-list import, Save As, and a Windows Qt timeline-click test. This source still needs Windows GitHub Actions validation.
+
+See `BUILD196_PLAIN_JSON_REOPEN_AND_ANIMATION_IMPORT.md`.
