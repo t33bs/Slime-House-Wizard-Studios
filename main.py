@@ -9,16 +9,36 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt, QSettings, QEvent, QObject
 from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QApplication, QHBoxLayout, QMainWindow, QMessageBox, QPushButton,
-    QTabWidget, QVBoxLayout, QWidget, QLabel,
+    QTabWidget, QVBoxLayout, QWidget, QLabel, QToolTip,
 )
 
 from studio.app import MainWindow as SHSEditor
 from studio.app import resource_path
 from shws_wizard.friendly_animator import Suite as WizardEditor
+
+
+class CanvasHoverTipGuard(QObject):
+    """Suppress idle tooltip popups over artwork, not helpful control tooltips.
+
+    Qt's native ToolTip event can present as a blank floating dialogue panel
+    on some Windows/Qt themes. Drawing canvases should never spawn one:
+    interaction guidance is already available on the neighboring controls.
+    This filter changes neither cursors nor drawing/mouse event handling.
+    """
+
+    def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.ToolTip:
+            QToolTip.hideText()
+            event.accept()
+            return True
+        if event.type() == QEvent.Type.Enter:
+            # Clear a tooltip left over from the previous widget on hover-in.
+            QToolTip.hideText()
+        return super().eventFilter(watched, event)
 
 
 class EmbeddedWizard(WizardEditor):
@@ -66,8 +86,9 @@ class EmbeddedWizard(WizardEditor):
             QMessageBox.warning(self, 'Could not open frame in SHS', str(exc))
             return
         self._shs_edit = (str(png), self._active_project_id, animation, self.frame)
+        self._shs_pose_id = self.model.pose_id(animation, self.frame)
         self._unified_host.tabs.setCurrentWidget(self._unified_host.studio)
-        self.status.setText('Frame opened in SHS tab. Save Back to Animator PNG, then reload in Wizard.')
+        self.status.setText('Frame opened in SHS. Edit it, then click Save Back to Animator + Return to Wizard.')
 
 
 class SlimeHouseWizardStudios(QMainWindow):
@@ -76,7 +97,7 @@ class SlimeHouseWizardStudios(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setObjectName('slimeHouseWizardStudios')
-        self.setWindowTitle('SLIME HOUSE WIZARD STUDIOS — Build 1.4')
+        self.setWindowTitle('SLIME HOUSE WIZARD STUDIOS — Build 1.7')
         self.setWindowIcon(QIcon(str(resource_path('assets/slime_mascot.png'))))
         self.resize(1500, 900)
         self.setMinimumSize(900, 600)
@@ -113,6 +134,18 @@ class SlimeHouseWizardStudios(QMainWindow):
         # Editors have distinct module namespaces. Do not import both as studio.
         self.studio = SHSEditor()
         self.wizard = EmbeddedWizard(self)
+        # Never show an idle/blank tooltip over either editing canvas.
+        # Keep tool/button/Transform-menu tooltips untouched and accessible.
+        self._canvas_tip_guard = CanvasHoverTipGuard(self)
+        for editing_canvas in (self.studio.canvas, self.wizard.canvas):
+            editing_canvas.setToolTip('')
+            editing_canvas.installEventFilter(self._canvas_tip_guard)
+        # The SHS in-editor button and the top host button use the SAME
+        # validated save → import → return path. Never import a failed save.
+        self.studio.linked_png_saved.connect(self._finish_shs_frame_handoff)
+        self.studio.external_save_button.setText('Save Back to Animator + Return to Wizard')
+        self.studio.external_save_button.setToolTip(
+            'Save this edited PNG, replace only its original Wizard timeline pose, and return to Slime Wizard.')
         self.tabs.addTab(self.studio, '🎨  SHS Studio')
         self.tabs.addTab(self.wizard, '🧙  Slime Wizard')
         self.tabs.currentChanged.connect(self._tab_changed)
@@ -131,11 +164,13 @@ class SlimeHouseWizardStudios(QMainWindow):
         ''')
 
     def _tab_changed(self, index: int):
+        QToolTip.hideText()  # A hover popup must not follow the old tab.
         is_shs = index == 0
         self.send_back.setVisible(is_shs and bool(self.wizard._shs_edit))
         self._settings.setValue('active_tab', index)
 
     def reload_edited_frame(self):
+        """Top toolbar action: save; a successful save signal completes handoff."""
         details = self.wizard._shs_edit
         if not details:
             QMessageBox.information(self, 'No linked frame',
@@ -148,13 +183,35 @@ class SlimeHouseWizardStudios(QMainWindow):
                                 'The active SHS document is not the linked Wizard frame. '
                                 'Open the original frame again before reloading.')
             return
-        # Saving here is explicit. The source project and all other Wizard poses
-        # are not replaced; Wizard validates project, animation, pose, and size.
         self.studio.save_external_png()
-        if self.studio._dirty:
+
+    def _finish_shs_frame_handoff(self, saved_path: str):
+        """Only a successful SHS linked-PNG save may trigger a Wizard import."""
+        details = self.wizard._shs_edit
+        if not details:
+            # Standalone or an unrelated linked document: no implicit import.
             return
+        linked = self.studio.external_png_path
+        if (linked is None or Path(details[0]).resolve() != Path(saved_path).resolve()
+                or Path(linked).resolve() != Path(saved_path).resolve()):
+            QMessageBox.warning(self, 'Linked frame changed',
+                                'PNG was saved, but its original Wizard pose could not be verified. '
+                                'The Wizard timeline was not changed.')
+            return
+        if not self.wizard.reload_shs_edit():
+            self.studio.statusBar().showMessage(
+                'PNG saved, but Wizard import was blocked. Your SHS edit is still available.', 10000)
+            return
+        # The one-shot linked session is complete: do not accidentally import
+        # this image again or keep a misleading active "Save Back" button.
+        self.wizard._shs_edit = None
+        self.wizard._shs_pose_id = None
+        self.studio.external_png_path = None
+        self.studio.external_save_button.setVisible(False)
         self.tabs.setCurrentWidget(self.wizard)
-        self.wizard.reload_shs_edit()
+        self.wizard.status.setText(
+            f'Imported edited PNG into original pose {details[3]+1}. '
+            'Other timeline poses are unchanged. Main Undo reverses the import.')
 
     def closeEvent(self, event):
         # Child windows have independent unsaved-work guards. Closing the host

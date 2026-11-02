@@ -1,12 +1,12 @@
-# SLIME HOUSE WIZARD STUDIOS — Build 1
+# SLIME HOUSE WIZARD STUDIOS — Build 1.7
 
 **One Windows application, two native editing workspaces.** This is an **integration candidate**, not a certified release until the Windows GitHub Actions tests and user acceptance tests pass.
 
 ## What is integrated
 
-- **SHS Studio**: the complete Slime House Studios PySide6 editor, carried over without modifying its Python files.
+- **SHS Studio**: the complete Slime House Studios PySide6 editor with narrowly scoped approved drawing, saving and handoff fixes.
 - **Slime Wizard**: the complete Phase 103+ Wizard editor as a second live Qt tab. To prevent `studio.*` import collisions, its own library is namespaced under `shws_wizard.studio`.
-- **Edit Frame in SHS**: Wizard sends the selected saved pose as a temporary PNG to the SHS tab instead of launching a second process. SHS's existing **Save Back to Animator PNG** action and Wizard's existing **Reload SHS Edit** continue to work. The host additionally provides **Save SHS PNG + Reload Wizard Pose** while a linked frame is open.
+- **Edit Frame in SHS**: Wizard sends the selected saved pose as a temporary PNG to the SHS tab instead of launching a second process. SHS's **Save Back to Animator + Return to Wizard** button now saves the edited PNG, reimports into the *original* saved Wizard timeline pose, and automatically switches back to Wizard **only after successful validation**. The top **Save SHS Pose + Return to Wizard** toolbar button does exactly the same thing. The original pose remains editable, with no new timeline frame.
 - **Projects stay independent**. SHS project save format and Wizard creature/pose save format are NOT merged. No destructive format migration is attempted.
 - **Slime Buddy**: the Wizard's existing visual helper/guidance remains. The **separate experimental Slime Buddy generator/AI engine is NOT integrated**.
 
@@ -32,9 +32,9 @@ This source ZIP is meant to be uploaded as the contents of a **new independent G
 
 1. Create the new `SLIME-HOUSE-WIZARD-STUDIOS` repository.
 2. Extract this ZIP into a **fresh folder**, then commit and push the folder's *contents*. Do not upload the ZIP itself and do not overwrite the old repositories.
-3. Open GitHub **Actions → SHWS Build 1.4 - Windows portable and optional installer**.
+3. Open GitHub **Actions → SHWS Build 1.7 - Windows portable and optional installer**.
 4. Wait for Windows test/smoke validation. **A green run is required** before sharing an EXE.
-5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build14-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build14-Installer-Windows** from the successful run's Artifacts.
+5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build17-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build17-Installer-Windows** from the successful run's Artifacts.
 
 The portable ZIP runs without installation once extracted. The optional installer creates Start Menu shortcuts and an optional desktop shortcut. **Uninstall removes app files and shortcuts, not saved user projects in home directories.**
 
@@ -46,7 +46,7 @@ PySide6 is not installed here and package downloads are unavailable, so **no act
 
 - SHS opens; draw/import/save/reopen a project without affecting Wizard.
 - Wizard opens; edit two different poses with Slimer; Place Frame, reorder timeline, and save/reopen without pose overwrite.
-- Use the **Edit Frame in SHS** button on a saved Wizard pose, draw on SHS, save the linked PNG, then reload the correct Wizard pose; verify Undo and original source preservation.
+- Use **Edit Frame in SHS** on a saved Wizard pose, draw in SHS, then click the SHS-side **Save Back to Animator + Return to Wizard** button. It must return to Wizard and replace **only** the original pose, without adding another frame. Verify Undo and the earlier frame's source preservation. Test the top toolbar action as well.
 - In SHS, try editing a dirty open project then initiate handoff; it must refuse to discard unsaved work.
 - Export GIF and APNG/animated PNG from Wizard; check animation timing and transparent pixels in Brave and image preview apps.
 - Switch tabs repeatedly while using shortcuts, tools, palettes, docks, preview play/pause, opening dialogs, and saved geometry.
@@ -54,7 +54,7 @@ PySide6 is not installed here and package downloads are unavailable, so **no act
 
 ## Architecture and source provenance
 
-`main.py` is the sole new launcher. `studio/` is SHS's unmodified editor library. `shws_wizard/` holds Wizard's original source logic with namespace changes and a one-method embedded timeline parent safety adaptation. `baseline_sources/` retains each supplied source snapshot separately for regression testing. SHS and Wizard save settings under their original independent namespaces. `packaging/SHWS.iss` is the new optional installer recipe.
+`main.py` is the sole new launcher. `studio/` retains SHS's editor with narrowly scoped drawing shortcut/save handoff additions. `shws_wizard/` holds Wizard's original source logic with namespace changes and a one-method embedded timeline parent safety adaptation. `baseline_sources/` retains each supplied source snapshot separately for regression testing. SHS and Wizard save settings under their original independent namespaces. `packaging/SHWS.iss` is the new optional installer recipe.
 
 No automatically published GitHub Release, no repository creation, and no remote push occur from this ZIP. The user retains control of their GitHub repositories.
 
@@ -76,3 +76,42 @@ A pending **unconfirmed** Slimer move still locks editing to that staged layer
 until **Apply Move** or **Cancel**. This fix changes mouse selection only; it
 does not alter pixel extraction/erasure, timeline ownership, saving, or export.
 See `BUILD14_SLIMER_LAYER_RESELECTION_FIX.md` for test instructions.
+
+## Build 1.5 keyboard and SHS→Wizard one-click roundtrip
+
+- **P** = Pencil (or its matching Frame Pencil / Mask Brush context).
+- **B** = Paint Bucket. Pencil no longer owns B.
+- **E** = Eraser and **I** = Eyedropper.
+- From Slime Wizard, select a *saved* pose and click **Edit Frame in SHS**.
+- Paint in SHS, then click **Save Back to Animator + Return to Wizard** within SHS (the top toolbar return button also works).
+- The app exports the temporary PNG, validates the original project, animation, pose identity, and 128×128 canvas size (or original canvas size), imports an editable full-canvas PNG layer into that *same* saved pose, refreshes the timeline thumbnail and switches to the Wizard tab. Other frames and durations stay unchanged. This is not an automatic save of the `.rig.json`; use **Save Creature** afterward.
+- If PNG saving fails, or the intended original pose is no longer selected or was reordered, the editor **does not** import into the wrong pose or switch tabs. The SHS work remains available.
+- Undo in Wizard can reverse the imported frame. Standalone SHS behavior is unchanged; the completion signal is only consumed by the unified app.
+
+Tests: `python -m pytest tests -q` plus Windows GUI tests in
+`tests/test_build15_hotkeys_handoff_gui.py`. See `BUILD15_HOTKEYS_PNG_HANDOFF.md`.
+
+## Build 1.6 Eyedropper → Pencil default
+
+- A successful **I / Eyedropper** sample returns to **Pencil**, even when the last tool was **Chameleon (2×2)**, Bucket, Eraser, Move or a contextual drawing tool.
+- Transparent pixels do not pick a color; Eyedropper stays active until a visible pixel is sampled.
+- Existing Chameleon samples remain available if you deliberately select Chameleon later, but Eyedropper will never activate it as a side effect.
+- **P = Pencil, B = Paint Bucket, I = Eyedropper, E = Eraser** are unchanged.
+- New regression coverage: `tests/test_build16_eyedropper_pencil_model.py` and `tests/test_build16_eyedropper_pencil_gui.py`.
+- See `BUILD16_EYEDROPPER_PENCIL_FIX.md` for the exact Windows acceptance sequence.
+
+
+## Build 1.7 — idle hover bubble / empty dialogue popup
+
+Build 1.3 replaced a problematic custom SHS cursor, but that did not stop
+the separate Qt hover-tooltip popup. The combined app now suppresses
+ToolTip events **only on the two artwork canvases** and clears any lingering
+hover tooltip when entering a canvas or switching editor tabs. The Slime
+Wizard transform panel, drawing-tool controls, help tooltips and optional
+Slime Buddy dialogue remain intact. No image data or pose save paths change.
+
+Windows acceptance: leave the mouse stationary over blank and painted
+portions of the SHS canvas and Slime Wizard canvas; no floating blank box
+should appear. Then hover over a real tool/help button and confirm its
+normal description still appears. If a box persists, take a screenshot
+including the cursor and full app panel so its true widget can be identified.

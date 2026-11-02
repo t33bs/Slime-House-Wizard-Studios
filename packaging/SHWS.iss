@@ -1,5 +1,5 @@
 #define AppName "Slime House Wizard Studios"
-#define AppVersion "0.1.4"
+#define AppVersion "0.1.7"
 #define AppExe "SlimeHouseWizardStudios.exe"
 [Setup]
 AppId={{C4C7A50B-1984-4A39-86B4-E1097BD0B52A}
@@ -9,7 +9,7 @@ AppPublisher=Slime House Studios
 DefaultDirName={localappdata}\Programs\Slime House Wizard Studios
 DefaultGroupName={#AppName}
 OutputDir=..\installer-output
-OutputBaseFilename=SlimeHouseWizardStudios-Build14-Setup
+OutputBaseFilename=SlimeHouseWizardStudios-Build17-Setup
 Compression=lzma2
 SolidCompression=yes
 SetupIconFile=..\assets\slime_house_studios.ico
