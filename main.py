@@ -97,7 +97,7 @@ class SlimeHouseWizardStudios(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setObjectName('slimeHouseWizardStudios')
-        self.setWindowTitle('SLIME HOUSE WIZARD STUDIOS — Build 1.7')
+        self.setWindowTitle('SLIME HOUSE WIZARD STUDIOS — Build 1.18')
         self.setWindowIcon(QIcon(str(resource_path('assets/slime_mascot.png'))))
         self.resize(1500, 900)
         self.setMinimumSize(900, 600)
@@ -142,7 +142,7 @@ class SlimeHouseWizardStudios(QMainWindow):
             editing_canvas.installEventFilter(self._canvas_tip_guard)
         # The SHS in-editor button and the top host button use the SAME
         # validated save → import → return path. Never import a failed save.
-        self.studio.linked_png_saved.connect(self._finish_shs_frame_handoff)
+        self.studio._linked_png_save_callback = self._finish_shs_frame_handoff
         self.studio.external_save_button.setText('Save Back to Animator + Return to Wizard')
         self.studio.external_save_button.setToolTip(
             'Save this edited PNG, replace only its original Wizard timeline pose, and return to Slime Wizard.')
@@ -170,7 +170,7 @@ class SlimeHouseWizardStudios(QMainWindow):
         self._settings.setValue('active_tab', index)
 
     def reload_edited_frame(self):
-        """Top toolbar action: save; a successful save signal completes handoff."""
+        """Top toolbar action: save; a successful save completes handoff."""
         details = self.wizard._shs_edit
         if not details:
             QMessageBox.information(self, 'No linked frame',

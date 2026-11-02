@@ -32,12 +32,19 @@ def test_shs_source_changes_are_limited_to_approved_tools_and_saving():
         'reset_chameleon_sample','save_project_as','load_project','new_project',
         'setup_classic_menus','closeEvent','open_external_png','change_size',
         'clear_canvas','restore_snapshot','install_beginner_helpers',
+        'save_external_png','sample_color_at','activate_tool',
     }
-    assert set(a)-set(b)=={'chameleon_at','reset_chameleon_sample','save_project_as'}
+    assert set(a)-set(b)=={'chameleon_at','reset_chameleon_sample','save_project_as',
+                           'activate_paint_bucket'}
     assert set(b)-set(a)==set()
     for name in set(b)-allowed:
         assert ast.dump(a[name],include_attributes=False)==ast.dump(b[name],include_attributes=False),name
     assert 'from .chameleon_tool import sample_2x2, stamp_2x2' in runtime
+    # Build 1.5 may add only the linked-PNG completion signal and keyboard binding.
+    main_window = next(n for n in after.body if isinstance(n,ast.ClassDef) and n.name=='MainWindow')
+    assert 'self._linked_png_save_callback=None' in runtime
+    assert "('P',self.activate_universal_brush),('B',self.activate_paint_bucket)" in runtime
+    assert 'callback(str(target.resolve()))' in runtime
 
 
 def test_wizard_has_independent_module_namespace():

@@ -1,4 +1,4 @@
-# SLIME HOUSE WIZARD STUDIOS — Build 1.7
+# SLIME HOUSE WIZARD STUDIOS — Build 1.18
 
 **One Windows application, two native editing workspaces.** This is an **integration candidate**, not a certified release until the Windows GitHub Actions tests and user acceptance tests pass.
 
@@ -32,9 +32,9 @@ This source ZIP is meant to be uploaded as the contents of a **new independent G
 
 1. Create the new `SLIME-HOUSE-WIZARD-STUDIOS` repository.
 2. Extract this ZIP into a **fresh folder**, then commit and push the folder's *contents*. Do not upload the ZIP itself and do not overwrite the old repositories.
-3. Open GitHub **Actions → SHWS Build 1.7 - Windows portable and optional installer**.
+3. Open GitHub **Actions → SHWS Build 1.18 - Windows portable and optional installer**.
 4. Wait for Windows test/smoke validation. **A green run is required** before sharing an EXE.
-5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build17-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build17-Installer-Windows** from the successful run's Artifacts.
+5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build18-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build18-Installer-Windows** from the successful run's Artifacts.
 
 The portable ZIP runs without installation once extracted. The optional installer creates Start Menu shortcuts and an optional desktop shortcut. **Uninstall removes app files and shortcuts, not saved user projects in home directories.**
 
@@ -115,3 +115,8 @@ portions of the SHS canvas and Slime Wizard canvas; no floating blank box
 should appear. Then hover over a real tool/help button and confirm its
 normal description still appears. If a box persists, take a screenshot
 including the cursor and full app panel so its true widget can be identified.
+
+
+## Build 1.18 release candidate
+
+See `BUILD18_WINDOWS_CI_HANDOFF_FIX.md` for the GitHub Actions startup handoff fix.

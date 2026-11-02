@@ -236,15 +236,12 @@ class Canvas(QWidget):
             return
         m.paint_color=tuple(rgba)
         m.statusBar().showMessage(f'Picked color #{rgba[0]:02X}{rgba[1]:02X}{rgba[2]:02X} (alpha {rgba[3]})',2500)
-        # Restore the drawing tool after a one-click sample.
-        previous=getattr(m,'eyedropper_previous_tool','Pencil')
-        # Sampling is a drawing operation: return to the brush, never an eraser.
-        # Preserve the animation editing context (base / frame / mask).
-        brush_for_eraser={'Eraser':'Pencil','Frame Eraser':'Frame Pencil',
-                          'Mask Eraser':'Mask Brush'}
-        previous=brush_for_eraser.get(previous,previous)
-        if previous=='Eyedropper':previous='Pencil'
-        m.tool.setCurrentText(previous)
+        # Eyedropper is a one-shot color sampler. A successful sample ALWAYS
+        # returns to Pencil, even if Chameleon (2×2), Paint Bucket, Eraser,
+        # or Move / Transform was previously selected. In particular, never
+        # resume Chameleon and accidentally stamp its remembered 2×2 pattern.
+        # A transparent pixel returns earlier, keeping Eyedropper active.
+        m.tool.setCurrentText('Pencil')
         self.update()
 
 
@@ -342,11 +339,14 @@ class Canvas(QWidget):
         self.drag=None;self.update()
 
 class MainWindow(QMainWindow):
+    # The combined host registers a completion callback on this editor instance.
+    # Avoid a cross-editor custom Qt signal: the Build 1.7 Windows runner
+    # observed a MainWindow without a bound linked_png_saved attribute.
     def __init__(self):
         super().__init__();self.setWindowTitle('Slime House Studios — Pixel Art & Animation');self.setWindowIcon(QIcon(str(resource_path('assets/slime_mascot.png'))));self.resize(1450,860)
         self._last_window_state='normal'
         self.settings=QSettings('Slime House Studios','Studio');self.pet_anchors={};self.pet_regions={};self.frame_tracks={'Ink':{}};self.motion_keys={};self.layer_motion_keys={};self.pose_transition=None;self.frame_clips={};self.worksheet=NFTWorksheet();self.worksheet_row=None;self.size_px=(64,64);self.layers=[];self.regions=[];self.traits={};self.preview=[];self.index=0;self.frame_edits={};self.timeline_mode=False;self.paint_color=(169,229,188,255)
-        self.history=UndoHistory();self._restoring=False;self._dirty=False;self.project_path=None;self.external_png_path=None;self.chameleon_sample=None
+        self.history=UndoHistory();self._restoring=False;self._dirty=False;self.project_path=None;self.external_png_path=None;self._linked_png_save_callback=None;self.chameleon_sample=None
         self.recovery_path=Path.home()/'.slime_house_studios'/'recovery.json'
         self.autosave_timer=QTimer(self);self.autosave_timer.setInterval(60000);self.autosave_timer.timeout.connect(self.write_recovery);self.autosave_timer.start()
         self.timer=QTimer(self);self.timer.timeout.connect(self.next_frame)
@@ -686,7 +686,7 @@ class MainWindow(QMainWindow):
             'Move / Transform':'Drag a layer to move it. Use corner handles to resize and the round handle to rotate.',
             'Pencil':'Draw on the selected layer. Create a blank paint layer if needed.',
             'Eraser':'Erase artwork pixels from the selected layer.',
-            'Eyedropper':'Press I, then click a visible pixel to sample its color. Returns to your previous tool.',
+            'Eyedropper':'Press I, then click a visible pixel to sample its color. Returns to Pencil.',
             'Chameleon (2×2)':'First click samples a 2×2 area; later clicks stamp exact pixels onto the selected layer. Press Resample 2×2 to pick a new source.',
             'Animation Region':'Drag a box around the part of your artwork you want to animate.',
             'Mask Brush':'Highlight exactly which pixels an effect should animate; this does not paint the artwork.',
@@ -707,10 +707,10 @@ class MainWindow(QMainWindow):
               (self.advanced_effects,'Optional settings for lasers, gush, and independent effect timing.'),
               (self.export_settings,'Optional animation duration, looping, and output format controls.')]
         for widget,tip in tips:widget.setToolTip(tip)
-        self.tool.setToolTip('Choose how the mouse interacts with the canvas. B: brush/pencil, E: eraser, I: eyedropper. B/E use the active drawing context.')
+        self.tool.setToolTip('Choose a drawing tool. P: Pencil (current drawing context), B: Paint Bucket, E: Eraser, I: Eyedropper.')
         self.layer_list.setToolTip('Select the artwork layer you want to edit.')
         self.setStatusTip('Tip: Import a PNG or create a blank layer to begin.')
-        for keys,fn in [('Ctrl+Z',self.undo),('Ctrl+Shift+Z',self.redo),('Ctrl+Y',self.redo),('I',self.activate_eyedropper),('B',self.activate_universal_brush),('E',self.activate_universal_eraser),('+',lambda:self.adjust_brush_size(1)),('=',lambda:self.adjust_brush_size(1)),('-',lambda:self.adjust_brush_size(-1)),('Ctrl+O',self.load_project),('Ctrl+S',self.save_project),('Ctrl+I',self.import_png),('Ctrl+E',self.export_choose_formats)]:
+        for keys,fn in [('Ctrl+Z',self.undo),('Ctrl+Shift+Z',self.redo),('Ctrl+Y',self.redo),('I',self.activate_eyedropper),('P',self.activate_universal_brush),('B',self.activate_paint_bucket),('E',self.activate_universal_eraser),('+',lambda:self.adjust_brush_size(1)),('=',lambda:self.adjust_brush_size(1)),('-',lambda:self.adjust_brush_size(-1)),('Ctrl+O',self.load_project),('Ctrl+S',self.save_project),('Ctrl+I',self.import_png),('Ctrl+E',self.export_choose_formats)]:
             shortcut=QShortcut(QKeySequence(keys),self);shortcut.activated.connect(fn)
         # Keep native Delete behavior in editors by disabling the shortcut BEFORE
         # Qt's shortcut dispatch (returning from a callback would swallow the key).
@@ -804,6 +804,10 @@ class MainWindow(QMainWindow):
         context=self._drawing_context()
         self.last_drawing_context=context
         self.tool.setCurrentText({'base':'Pencil','frame':'Frame Pencil','mask':'Mask Brush'}[context])
+
+    def activate_paint_bucket(self):
+        """Use B for Paint Bucket without changing any source pixels by itself."""
+        self.tool.setCurrentText('Paint Bucket')
 
     def activate_universal_eraser(self):
         context=self._drawing_context()
@@ -918,10 +922,21 @@ class MainWindow(QMainWindow):
         target=Path(self.external_png_path)
         try:
             safe_export(str(target),lambda tmp:composite(self.layers,self.size_px).save(tmp,format='PNG'),self._validate_still_export)
-            self._dirty=False
-            self.statusBar().showMessage(f'Saved PNG for Friendly Animator: {target}',6000)
         except Exception as exc:
             QMessageBox.warning(self,'Save linked PNG failed',str(exc))
+            return False
+        # PNG is on disk and verified. A handoff exception must never be
+        # mislabeled as a failed PNG save or cause another pose to be written.
+        self._dirty=False
+        self.statusBar().showMessage(f'Saved PNG for Friendly Animator: {target}',6000)
+        callback = self._linked_png_save_callback
+        if callable(callback):
+            try:
+                callback(str(target.resolve()))
+            except Exception as exc:
+                QMessageBox.warning(self,'PNG saved; Wizard return failed',str(exc))
+                return False
+        return True
 
     def export_canvas_png(self):
         """One-click discoverable still PNG export, independent of project JSON."""
@@ -1036,7 +1051,7 @@ class MainWindow(QMainWindow):
             'Spray Can':('✺','Scatter crisp pixels with adjustable radius and density','#b7f6d1'),
             'Move Laser Asset':('↗','Drag pink emitter; drag yellow aim handle to rotate','#ffe58d'),
             'Pencil':('✏','Draw on your selected layer','#ffe3a1'),
-            'Eyedropper':('◉','Click a visible pixel to sample its color (I)','#c4b5fd'),
+            'Eyedropper':('◉','Click a visible pixel to sample its color, then Pencil (I)','#c4b5fd'),
             'Eraser':('⌫','Erase artwork on your selected layer','#ffb6b6'),
             'Animation Region':('▭','Drag a rectangle (Advanced / legacy)','#d5bbef'),
             'Mask Brush':('🖍','Paint highlights over pixels to animate','#91e6bb'),

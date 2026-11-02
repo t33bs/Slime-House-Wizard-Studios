@@ -26,7 +26,7 @@ def test_canvas_hover_tooltip_filter_only_covers_artwork_canvases():
 
 def test_previous_ui_and_save_fixes_are_not_modified():
     src = (ROOT / 'main.py').read_text(encoding='utf-8')
-    assert 'self.studio.linked_png_saved.connect(self._finish_shs_frame_handoff)' in src
+    assert 'self.studio._linked_png_save_callback = self._finish_shs_frame_handoff' in src
     assert 'self.wizard.reload_shs_edit()' in src
     assert 'self.wizard._shs_pose_id = None' in src
     shs = (ROOT / 'studio/app.py').read_text(encoding='utf-8')
