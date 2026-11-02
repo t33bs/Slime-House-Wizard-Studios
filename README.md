@@ -1,4 +1,4 @@
-# SLIME HOUSE WIZARD STUDIOS — Build 1.9.4
+# SLIME HOUSE WIZARD STUDIOS — Build 1.9.5
 
 **One Windows application, two native editing workspaces.** This is an **integration candidate**, not a certified release until the Windows GitHub Actions tests and user acceptance tests pass.
 
@@ -32,9 +32,9 @@ This source ZIP is meant to be uploaded as the contents of a **new independent G
 
 1. Create the new `SLIME-HOUSE-WIZARD-STUDIOS` repository.
 2. Extract this ZIP into a **fresh folder**, then commit and push the folder's *contents*. Do not upload the ZIP itself and do not overwrite the old repositories.
-3. Open GitHub **Actions → SHWS Build 1.9.4 - Windows portable and optional installer**.
+3. Open GitHub **Actions → SHWS Build 1.9.5 - Windows portable and optional installer**.
 4. Wait for Windows test/smoke validation. **A green run is required** before sharing an EXE.
-5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build194-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build194-Installer-Windows** from the successful run's Artifacts.
+5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build195-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build195-Installer-Windows** from the successful run's Artifacts.
 
 The portable ZIP runs without installation once extracted. The optional installer creates Start Menu shortcuts and an optional desktop shortcut. **Uninstall removes app files and shortcuts, not saved user projects in home directories.**
 
@@ -170,3 +170,25 @@ of the original creature/asset folder until the portable build passes.
 
 Do not treat independent shadow/particle pixels as errors or erase them
 unprompted. This update does not touch the APNG export or SHS references.
+
+
+## Build 1.9.5 — Open saved creatures at their own canvas size
+
+- **Open Creature** first filters for `.rig.json` editable creature projects;
+  legacy `.json` creature projects are still accessible through the second
+  file-type filter. The current blank canvas dimensions do not matter.
+- If the user selects exported `*_sheet.json` instead of a creature, the
+  program explains that sprite-sheet metadata does not contain an editable
+  layered rig. This is not an image resizing problem. Use the matching file
+  saved with **Save Creature** or **Save Creature As**.
+- Native saved rig manifests store `size: [width, height]`; on opening, all
+  canvas dimensions are restored before constructing the canvas or timeline.
+  Legacy editable creature manifests with explicitly named `size` objects,
+  `canvas_size`, `canvas`, or `canvas_width` / `canvas_height` also open.
+  No pixel-based guessing, destructive resizing, or conversion of exported
+  sheet metadata to rig data is performed.
+- Invalid or ambiguous dimensions still fail safely without modifying the
+  existing project or recreating missing layers.
+- Tests cover 64², 128², 256², 512², 1024² and non-square 96×160,
+  512×128; they verify pose IDs, timing, RGBA render equality and
+  unchanged source bytes. Windows Qt GUI open/resize tests included.

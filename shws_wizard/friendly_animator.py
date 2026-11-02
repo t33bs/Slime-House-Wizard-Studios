@@ -4612,7 +4612,9 @@ class Suite(QMainWindow):
         return self.save_project_by_id(self._active_project_id,force_new_path=True)
 
     def open_project(self):
-        path,_=QFileDialog.getOpenFileName(self,'Open creature','','Rig project (*.json)')
+        path,_=QFileDialog.getOpenFileName(
+            self, 'Open creature — editable rig project', '',
+            'Editable creature project (*.rig.json);;Legacy creature JSON (*.json)')
         if path:
             try:
                 resolved=str(Path(path).resolve())
