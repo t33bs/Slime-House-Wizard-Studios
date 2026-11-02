@@ -1,4 +1,4 @@
-# SLIME HOUSE WIZARD STUDIOS — Build 1.18
+# SLIME HOUSE WIZARD STUDIOS — Build 1.9.1
 
 **One Windows application, two native editing workspaces.** This is an **integration candidate**, not a certified release until the Windows GitHub Actions tests and user acceptance tests pass.
 
@@ -32,9 +32,9 @@ This source ZIP is meant to be uploaded as the contents of a **new independent G
 
 1. Create the new `SLIME-HOUSE-WIZARD-STUDIOS` repository.
 2. Extract this ZIP into a **fresh folder**, then commit and push the folder's *contents*. Do not upload the ZIP itself and do not overwrite the old repositories.
-3. Open GitHub **Actions → SHWS Build 1.18 - Windows portable and optional installer**.
+3. Open GitHub **Actions → SHWS Build 1.9.1 - Windows portable and optional installer**.
 4. Wait for Windows test/smoke validation. **A green run is required** before sharing an EXE.
-5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build18-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build18-Installer-Windows** from the successful run's Artifacts.
+5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build191-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build191-Installer-Windows** from the successful run's Artifacts.
 
 The portable ZIP runs without installation once extracted. The optional installer creates Start Menu shortcuts and an optional desktop shortcut. **Uninstall removes app files and shortcuts, not saved user projects in home directories.**
 
@@ -117,6 +117,13 @@ normal description still appears. If a box persists, take a screenshot
 including the cursor and full app panel so its true widget can be identified.
 
 
-## Build 1.18 release candidate
+## Build 1.9.1 release candidate
 
 See `BUILD18_WINDOWS_CI_HANDOFF_FIX.md` for the GitHub Actions startup handoff fix.
+
+
+## Build 1.9.1 — SHS New Pose + Pixel-Exact APNG Combined
+
+This merge deliberately preserves Build 1.8.2's **Send to Slime Wizard as New Pose** visible SHS button and the earlier linked **Save Back to Animator + Return to Wizard** workflow, plus Build 1.9's verified APNG output and optional (non-destructive) disconnected pixel warnings. Do not apply the older standalone Build 1.9 patch afterward, because that patch contains older `main.py` and `shws_wizard/friendly_animator.py` versions that would remove the new-pose button.
+
+See `BUILD182_SEND_SHS_NEW_WIZARD_POSE.md` and `BUILD19_APNG_FRAME_VERIFICATION.md`. GitHub Actions and Windows GUI verification are required before considering this production ready.

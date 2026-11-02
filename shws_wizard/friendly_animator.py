@@ -3748,6 +3748,56 @@ class Suite(QMainWindow):
         self._timeline_structure_changed()
         self.status.setText(f'Inserted pose {index+1} after the selected pose. Later poses were preserved.')
 
+    def import_shs_image_as_new_pose(self, image):
+        """Add one new editable pose using current SHS pixels, without a file dialog.
+
+        This is distinct from reload_shs_edit(), which replaces the verified
+        original linked pose. This method always inserts a NEW stable pose ID
+        after the selected pose. No existing pose image or duration is replaced.
+        """
+        if (getattr(self, '_slimer_pending_part', None) is not None
+                or getattr(self, '_slimer_pending_layer', None) is not None
+                or getattr(self, '_next_pose_capture_pending', False)):
+            QMessageBox.information(self, 'Finish current Wizard edit',
+                'Apply, place, or cancel the unfinished Wizard pose or Slimer layer '
+                'before adding SHS artwork as a new pose.')
+            return False
+        animation = self.anim.currentText()
+        if not self._canvas_owns_selected_pose(animation):
+            return False
+        if not isinstance(image, Image.Image):
+            QMessageBox.warning(self, 'SHS artwork unavailable',
+                'Could not obtain a readable image from the SHS canvas.')
+            return False
+        rgba = image.convert('RGBA').copy()
+        if rgba.size != tuple(self.model.size):
+            QMessageBox.warning(self, 'Canvas size mismatch',
+                f'SHS canvas is {rgba.width} × {rgba.height} pixels, but Wizard '
+                f'expects {self.model.size[0]} × {self.model.size[1]}. '
+                'Match the SHS canvas dimensions before transferring; nothing was added.')
+            return False
+        try:
+            self.preserve_pose_draft()
+            self.remember()
+            frames = self.model.animations.get(animation, [])
+            # Model creates an independent stable ID and preserves all later
+            # frames, including when inserting in the middle of a timeline.
+            index = self.model.insert_frame(animation, min(max(self.frame+1,0),len(frames)))
+            self.model.replace_frame_image(animation, index, rgba, mode='exact')
+            # A newly imported part changed the live model; never allow that
+            # live canvas to auto-save into the previously selected pose.
+            self._pose_draft_key = None
+            self._pose_draft_dirty = False
+            self.assets.addItem(self.model.parts[-1]['name'])
+            self._timeline_structure_changed()
+            self.select_timeline_pose(index)
+            self.status.setText(f'Added SHS art as new pose {index+1}. '
+                'Other poses are untouched; save the creature to keep this pose.')
+            return True
+        except (OSError, ValueError, IndexError, KeyError) as exc:
+            QMessageBox.warning(self, 'Could not add SHS pose', str(exc))
+            return False
+
     def import_pose_png_overlay(self):
         """Build one new editable pose over the selected saved pose."""
         return self.import_pose_png(mode='overlay')
@@ -4334,6 +4384,23 @@ class Suite(QMainWindow):
         try:
             exported=self.model.export_animations(folder,basename=basename)
             self.status.setText(f'Exported {len(exported)} animation files to {folder}')
+            # Technical check only: isolated clusters may be intentional effects.
+            # Do not delete pixels or block an otherwise successful export.
+            from shws_wizard.studio.export_diagnostics import detached_pixel_clusters
+            notices=[]
+            for animation, poses in self.model.animations.items():
+                for frame_index, pose in enumerate(poses):
+                    for cluster in detached_pixel_clusters(self.model.render(pose))[:3]:
+                        x0,y0,x1,y1=cluster['bounds']
+                        notices.append(f'{animation} pose {frame_index+1}: '
+                                       f'{cluster["pixels"]} detached pixels at '
+                                       f'x={x0}-{x1}, y={y0}-{y1}')
+            if notices:
+                QMessageBox.information(self, 'Optional detached-pixel review',
+                    'Export completed successfully; no artwork was changed. '
+                    'These isolated pixel groups may be intentional.\n\n' +
+                    '\n'.join(notices[:8]) +
+                    ('\n(Additional groups omitted.)' if len(notices)>8 else ''))
         except Exception as exc:
             QMessageBox.warning(self,'Animation export failed',str(exc))
 

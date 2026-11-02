@@ -60,7 +60,7 @@ def test_wizard_has_independent_module_namespace():
 def test_wizard_models_same_logic_as_original():
     for p in (ROOT/'shws_wizard'/'studio').rglob('*.py'):
         original=ROOT/'baseline_sources'/'SlimeWizard'/'studio'/p.relative_to(ROOT/'shws_wizard'/'studio')
-        if p.name == 'asset_hit_test.py':
+        if p.name in ('asset_hit_test.py', 'export_diagnostics.py'):
             # Build 1.4 adds one pure, isolated hit-test helper; all original
             # Wizard model modules remain protected by their baseline checks.
             assert not original.exists()
@@ -94,6 +94,12 @@ def test_wizard_models_same_logic_as_original():
             extra=actual[len(expected):]
             assert 'BUILD13_CANVAS_TIMELINE_QSS' in extra
             assert extra.strip().endswith('PIXEL_THEME_QSS += BUILD13_CANVAS_TIMELINE_QSS')
+        elif p.name == 'apng_export.py':
+            # Build 1.9.1 uses full-frame SOURCE replacement and verifies
+            # decoded RGBA before atomically publishing an APNG.
+            assert 'disposal=1, blend=0' in actual
+            assert 'os.replace(temporary, output)' in actual
+            assert "decoded.convert('RGBA').tobytes() != expected.tobytes()" in actual
         else:
             assert actual==expected, f'Wizard model logic diverged: {p}'
 

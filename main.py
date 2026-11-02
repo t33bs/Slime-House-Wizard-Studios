@@ -97,7 +97,7 @@ class SlimeHouseWizardStudios(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setObjectName('slimeHouseWizardStudios')
-        self.setWindowTitle('SLIME HOUSE WIZARD STUDIOS — Build 1.18')
+        self.setWindowTitle('SLIME HOUSE WIZARD STUDIOS — Build 1.9.1')
         self.setWindowIcon(QIcon(str(resource_path('assets/slime_mascot.png'))))
         self.resize(1500, 900)
         self.setMinimumSize(900, 600)
@@ -146,6 +146,22 @@ class SlimeHouseWizardStudios(QMainWindow):
         self.studio.external_save_button.setText('Save Back to Animator + Return to Wizard')
         self.studio.external_save_button.setToolTip(
             'Save this edited PNG, replace only its original Wizard timeline pose, and return to Slime Wizard.')
+        # This is NOT the linked-frame replacement above. It is an explicit,
+        # always-visible transfer of the CURRENT SHS canvas as a fresh pose.
+        # Place it beside SHS Save/Save As controls so artists can find it
+        # even when they did not enter SHS through Edit Frame in SHS.
+        sidebar = self.studio.external_save_button.parentWidget()
+        sidebar_layout = sidebar.layout()
+        self.studio.send_new_pose_button = QPushButton(
+            'Send to Slime Wizard as New Pose', sidebar)
+        self.studio.send_new_pose_button.setObjectName('shwsSendNewWizardPose')
+        self.studio.send_new_pose_button.setToolTip(
+            'Add the visible SHS canvas as a NEW editable pose after the selected Wizard pose. '
+            'Does not replace any existing timeline pose. Save Creature in Wizard afterward.')
+        self.studio.send_new_pose_button.clicked.connect(self.send_shs_as_new_pose)
+        sidebar_layout.insertWidget(
+            sidebar_layout.indexOf(self.studio.external_save_button)+1,
+            self.studio.send_new_pose_button)
         self.tabs.addTab(self.studio, '🎨  SHS Studio')
         self.tabs.addTab(self.wizard, '🧙  Slime Wizard')
         self.tabs.currentChanged.connect(self._tab_changed)
@@ -168,6 +184,30 @@ class SlimeHouseWizardStudios(QMainWindow):
         is_shs = index == 0
         self.send_back.setVisible(is_shs and bool(self.wizard._shs_edit))
         self._settings.setValue('active_tab', index)
+
+    def send_shs_as_new_pose(self):
+        """Explicitly add the visible SHS frame to Wizard; never overwrite a pose."""
+        try:
+            # current_image() uses the actual displayed SHS preview/frame when
+            # present, otherwise the normal layered canvas composite. Capturing
+            # it in memory avoids forcing a Save As or writing a temp PNG.
+            image = self.studio.current_image().convert('RGBA').copy()
+        except Exception as exc:
+            QMessageBox.warning(self, 'Cannot transfer SHS artwork', str(exc))
+            return False
+        if not self.wizard.import_shs_image_as_new_pose(image):
+            return False
+        # Sending a NEW pose ends any separate original-pose replacement link.
+        # Otherwise a later Save Back could accidentally affect the old pose.
+        self.wizard._shs_edit = None
+        self.wizard._shs_pose_id = None
+        self.studio.external_png_path = None
+        self.studio.external_save_button.setVisible(False)
+        self.tabs.setCurrentWidget(self.wizard)
+        self.wizard.status.setText(
+            f'Added SHS artwork as NEW pose {self.wizard.frame+1}. '
+            'Previous poses remain unchanged. Use Save Creature to keep it in the rig project.')
+        return True
 
     def reload_edited_frame(self):
         """Top toolbar action: save; a successful save completes handoff."""
