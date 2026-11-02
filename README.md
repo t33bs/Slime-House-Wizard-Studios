@@ -1,4 +1,4 @@
-# SLIME HOUSE WIZARD STUDIOS — Build 1.9.1
+# SLIME HOUSE WIZARD STUDIOS — Build 1.9.3
 
 **One Windows application, two native editing workspaces.** This is an **integration candidate**, not a certified release until the Windows GitHub Actions tests and user acceptance tests pass.
 
@@ -32,9 +32,9 @@ This source ZIP is meant to be uploaded as the contents of a **new independent G
 
 1. Create the new `SLIME-HOUSE-WIZARD-STUDIOS` repository.
 2. Extract this ZIP into a **fresh folder**, then commit and push the folder's *contents*. Do not upload the ZIP itself and do not overwrite the old repositories.
-3. Open GitHub **Actions → SHWS Build 1.9.1 - Windows portable and optional installer**.
+3. Open GitHub **Actions → SHWS Build 1.9.3 - Windows portable and optional installer**.
 4. Wait for Windows test/smoke validation. **A green run is required** before sharing an EXE.
-5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build191-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build191-Installer-Windows** from the successful run's Artifacts.
+5. Download **SLIME-HOUSE-WIZARD-STUDIOS-Build193-Portable-Windows** or **SLIME-HOUSE-WIZARD-STUDIOS-Build193-Installer-Windows** from the successful run's Artifacts.
 
 The portable ZIP runs without installation once extracted. The optional installer creates Start Menu shortcuts and an optional desktop shortcut. **Uninstall removes app files and shortcuts, not saved user projects in home directories.**
 
@@ -117,13 +117,34 @@ normal description still appears. If a box persists, take a screenshot
 including the cursor and full app panel so its true widget can be identified.
 
 
-## Build 1.9.1 release candidate
+## Build 1.9.2 release candidate
 
 See `BUILD18_WINDOWS_CI_HANDOFF_FIX.md` for the GitHub Actions startup handoff fix.
 
 
-## Build 1.9.1 — SHS New Pose + Pixel-Exact APNG Combined
+## Build 1.9.2 — SHS New Pose + Pixel-Exact APNG Combined
 
 This merge deliberately preserves Build 1.8.2's **Send to Slime Wizard as New Pose** visible SHS button and the earlier linked **Save Back to Animator + Return to Wizard** workflow, plus Build 1.9's verified APNG output and optional (non-destructive) disconnected pixel warnings. Do not apply the older standalone Build 1.9 patch afterward, because that patch contains older `main.py` and `shws_wizard/friendly_animator.py` versions that would remove the new-pose button.
 
 See `BUILD182_SEND_SHS_NEW_WIZARD_POSE.md` and `BUILD19_APNG_FRAME_VERIFICATION.md`. GitHub Actions and Windows GUI verification are required before considering this production ready.
+
+
+## Build 1.9.2 — SHS reference viewer + Chameleon activation
+
+The SHS left sidebar now has **🖼 Open PNG Reference Window** directly below **Open Intermediate Studio**. It opens a right-side dock with multiple independent PNG references, thumbnail/name selection, a nearest-neighbor zoomable and scrollable preview, transparency checkerboard, hide/show and remove. Reference pixels never enter the drawing canvas, saved `.json` projects, Wizard poses, or animation exports. The viewer is session-only and doesn't modify source files.
+
+Chameleon now automatically discards its held 2×2 pattern **each time you reselect it** after using another tool. Its first click must sample anew; later clicks stamp. **Chameleon: Resample 2×2** remains available. Eyedropper still returns to Pencil. See `BUILD192_SHS_PNG_REFERENCES_CHAMELEON_RESET.md` for Windows tests.
+
+## Build 1.9.3 — Reference sampling (SHS only)
+
+SHS's right-side PNG Reference Window is now an active **read-only sampling surface**.
+With **I / Eyedropper** active, click a visible reference pixel to pick its native
+RGBA color and return automatically to **Pencil**. With **Chameleon (2×2)** active,
+click a full 2×2 native reference block to hold that exact RGBA pattern; clicking
+on the main SHS canvas stamps it. Clicking a different reference block while
+Chameleon is active explicitly re-samples the pattern. Transparent pixels and
+preview checkerboard are never confused. The reference image stays unchanged
+and the previously approved Chameleon re-activation reset is preserved.
+
+See `BUILD193_REFERENCE_EYEDROPPER_CHAMELEON.md` for exact usage and
+Windows acceptance tests.

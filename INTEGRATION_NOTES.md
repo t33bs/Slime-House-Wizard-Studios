@@ -20,3 +20,15 @@ Some preferences are stored in original per-editor `QSettings` namespaces. Exist
 ## Future Slime Buddy integration (NOT included)
 
 The independent Slime Buddy AI generator stays in its separate repository. In a future release, interface with Buddy through a separately launched worker process and a versioned request/response protocol. Give local AI an explicit opt-in switch. Admission control should calculate estimated VRAM requirements before scheduling jobs, target a configurable **~5 GiB GPU budget**, serialize concurrent inference, and reject or fall back when free GPU memory or an AMD-compatible backend is insufficient. A 5 GiB application budget is **not** a guaranteed hard device-memory cap without driver/backend enforcement; test on the user's Radeon RX 5600 XT 6GB. Keep all manual SHS and Wizard features usable without any model or online API.
+
+
+## Build 1.9.2 SHS-only changes
+`studio/reference_viewer.py` introduces a read-only, dockable PNG reference viewer (right side of SHS) behind a sidebar toggle just below Intermediate Studio. `studio/app.py` clears Chameleon samples when the tool is activated; no model, timeline, Wizard, or APNG changes. Standalone originals in `baseline_sources/` remain byte-identical.
+
+
+## Build 1.9.3 — SHS reference color/pattern sampling
+
+Added only `MainWindow.sample_reference_at` on SHS and read-only input/mapping
+to `studio.reference_viewer`; the reference window is now a sampling surface
+for Eyedropper and Chameleon, never a writable canvas. Existing Wizard
+source, pose ownership, project saving, and APNG exports are untouched.

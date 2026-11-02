@@ -13,6 +13,7 @@ from .bucket_fill import flood_fill
 from .safe_export import safe_export
 from .coordinates import screen_to_pixel
 from .chameleon_tool import sample_2x2, stamp_2x2
+from .reference_viewer import ReferenceDock
 from .core import Layer,Region,EFFECTS,composite,transformed,paint_pixel,frames_for,compose_timeline_frames,apply_motion_keyframes,paste_clip,compose_layer_motion_frames,interpolate_pose_anchors,export_apng,export_gif,export_sprite_sheet,generate_traits
 
 def resource_path(p):return Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parent.parent))/p
@@ -409,6 +410,9 @@ class MainWindow(QMainWindow):
         lv.addWidget(self.active_tool_banner)
         self.animator_button=QPushButton('✨ Open Junior Animator');self.animator_button.setToolTip('Quick effects for funny moving sprites and NFTs');lv.addWidget(self.animator_button)
         self.advanced_animator_button=QPushButton('🎞 Open Intermediate Studio');self.advanced_animator_button.setToolTip('Frame-by-frame timeline for longer animations and GIFs');lv.addWidget(self.advanced_animator_button)
+        self.reference_button=QPushButton('🖼 Open PNG Reference Window')
+        self.reference_button.setToolTip('Open a collapsible right-side window for PNG references. Reference images never change your sprite.')
+        lv.addWidget(self.reference_button)
         # Legacy Desktop Pet Builder is retired from the Studio interface.
         self.guided_toggle=QCheckBox('💡 Guided Mode — show beginner tips')
         self.guided_toggle.setChecked(self.settings.value('guided_mode',True,type=bool))
@@ -437,6 +441,12 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,self.animator_dock)
         self.animator_button.clicked.connect(self.toggle_animator)
         self.animator_dock.visibilityChanged.connect(self.animator_visibility_changed)
+        self.reference_dock=ReferenceDock(self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea,self.reference_dock)
+        self.reference_dock.hide()
+        self.reference_button.clicked.connect(self.toggle_reference_window)
+        self.reference_dock.visibilityChanged.connect(self.reference_visibility_changed)
+        self.reference_dock.preview_label.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
         self._tool_sizes = {name: 1 for name in self.SIZABLE_TOOLS}
         self.brush.valueChanged.connect(self._remember_active_tool_size)
         self.tool.currentTextChanged.connect(self.activate_tool)
@@ -687,7 +697,7 @@ class MainWindow(QMainWindow):
             'Pencil':'Draw on the selected layer. Create a blank paint layer if needed.',
             'Eraser':'Erase artwork pixels from the selected layer.',
             'Eyedropper':'Press I, then click a visible pixel to sample its color. Returns to Pencil.',
-            'Chameleon (2×2)':'First click samples a 2×2 area; later clicks stamp exact pixels onto the selected layer. Press Resample 2×2 to pick a new source.',
+            'Chameleon (2×2)':'Each time you activate Chameleon, first click samples a NEW 2×2 area; later clicks stamp that pattern. Press Resample 2×2 anytime.',
             'Animation Region':'Drag a box around the part of your artwork you want to animate.',
             'Mask Brush':'Highlight exactly which pixels an effect should animate; this does not paint the artwork.',
             'Mask Eraser':'Remove highlighted animation pixels without changing the artwork.',
@@ -1035,7 +1045,47 @@ class MainWindow(QMainWindow):
         if self.advanced_animator_dock.isVisible():self.advanced_animator_dock.raise_()
     def advanced_animator_visibility_changed(self,visible):
         self.advanced_animator_button.setText('🎞 Hide Intermediate Studio' if visible else '🎞 Open Intermediate Studio')
+    def sample_reference_at(self, reference_image, x, y):
+        """Read a PNG reference to choose a tool sample; never edit or checkpoint art."""
+        tool=self.tool.currentText()
+        if tool=='Eyedropper':
+            if not (0<=x<reference_image.width and 0<=y<reference_image.height):
+                return False
+            rgba=reference_image.getpixel((x,y))
+            if rgba[3]==0:
+                self.statusBar().showMessage('Transparent reference pixel: color unchanged. Choose a visible pixel.',3500)
+                return False  # remain on Eyedropper; no checkerboard color
+            self.paint_color=tuple(rgba)
+            self.tool.setCurrentText('Pencil')
+            self.statusBar().showMessage(
+                f'Reference color picked: #{rgba[0]:02X}{rgba[1]:02X}{rgba[2]:02X} (alpha {rgba[3]}). Pencil ready.',5500)
+            return True
+        if tool=='Chameleon (2×2)':
+            try:
+                # Clicking a reference is an explicit re-sample even when a
+                # previous Chameleon pattern is held. Canvas clicks still stamp.
+                new_sample=sample_2x2(reference_image,x,y)
+            except ValueError:
+                self.statusBar().showMessage('Choose the top-left of a complete 2 × 2 reference block.',5000)
+                return False
+            self.chameleon_sample=new_sample
+            self.statusBar().showMessage('Reference 2 × 2 sampled. Click the SHS canvas to stamp, or another reference spot to resample.',6500)
+            return True
+        return False
+
+    def toggle_reference_window(self):
+        self.reference_dock.setVisible(not self.reference_dock.isVisible())
+        if self.reference_dock.isVisible():
+            self.reference_dock.raise_()
+
+    def reference_visibility_changed(self, visible):
+        self.reference_button.setText('🖼 Hide PNG Reference Window' if visible else '🖼 Open PNG Reference Window')
+
     def activate_tool(self,tool):
+        # Every new Chameleon activation begins in SAMPLE mode. A pattern
+        # from an earlier visit must NEVER be stamped by accident.
+        if tool=='Chameleon (2×2)':
+            self.chameleon_sample=None
         # This also handles selecting Eyedropper directly from the dropdown.
         if tool=='Eyedropper':
             previous=getattr(self,'_last_selected_tool','Pencil')
@@ -1069,6 +1119,9 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(f'Active tool: {tool} — {tip}',5000)
         self.canvas.setCursor(cursor_for_tool(tool))
+        self.reference_dock.preview_label.setCursor(QCursor(
+            Qt.CursorShape.CrossCursor if tool in ('Eyedropper','Chameleon (2×2)')
+            else Qt.CursorShape.ArrowCursor))
         self.open_animator_for_tool(tool)
         self.canvas.update()
 

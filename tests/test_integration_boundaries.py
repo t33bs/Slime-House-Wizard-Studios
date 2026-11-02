@@ -16,7 +16,7 @@ def test_all_core_modules_compile():
 def test_shs_source_changes_are_limited_to_approved_tools_and_saving():
     # All other SHS modules remain byte-for-byte identical to the source baseline.
     for p in (ROOT/'studio').rglob('*.py'):
-        if p.name in ('app.py','chameleon_tool.py'):
+        if p.name in ('app.py','chameleon_tool.py','reference_viewer.py'):
             continue
         original=ROOT/'baseline_sources'/'SHS'/p.relative_to(ROOT)
         assert original.is_file(),p
@@ -33,13 +33,22 @@ def test_shs_source_changes_are_limited_to_approved_tools_and_saving():
         'setup_classic_menus','closeEvent','open_external_png','change_size',
         'clear_canvas','restore_snapshot','install_beginner_helpers',
         'save_external_png','sample_color_at','activate_tool',
+        'toggle_reference_window','reference_visibility_changed','sample_reference_at',
     }
     assert set(a)-set(b)=={'chameleon_at','reset_chameleon_sample','save_project_as',
-                           'activate_paint_bucket'}
+                           'activate_paint_bucket','toggle_reference_window',
+                           'reference_visibility_changed','sample_reference_at'}
     assert set(b)-set(a)==set()
     for name in set(b)-allowed:
         assert ast.dump(a[name],include_attributes=False)==ast.dump(b[name],include_attributes=False),name
     assert 'from .chameleon_tool import sample_2x2, stamp_2x2' in runtime
+    assert 'from .reference_viewer import ReferenceDock' in runtime
+    viewer=(ROOT/'studio/reference_viewer.py').read_text(encoding='utf8')
+    assert 'class ReferenceDock(QDockWidget)' in viewer
+    assert 'class ReferenceDock(QDockWidget)' not in original
+    assert 'shws_wizard' not in viewer
+    assert 'self.reference_dock=ReferenceDock(self)' in runtime
+    assert 'self.chameleon_sample=None' in runtime
     # Build 1.5 may add only the linked-PNG completion signal and keyboard binding.
     main_window = next(n for n in after.body if isinstance(n,ast.ClassDef) and n.name=='MainWindow')
     assert 'self._linked_png_save_callback=None' in runtime
