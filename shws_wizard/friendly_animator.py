@@ -4007,19 +4007,43 @@ class Suite(QMainWindow):
         self.status.setText('Opened frame in SHS. Save the PNG there, then click Reload SHS Edit.')
 
     def reload_shs_edit(self):
-        """Reload only the originally selected pose, after confirming any context change."""
+        """Import an SHS PNG into its original stable timeline pose; report success.
+
+        The linked frame is never appended as a new pose. Its original pose ID,
+        current canvas ownership and active project must still match; otherwise
+        keep the saved external PNG and fail closed without modifying the rig.
+        """
         if not self._shs_edit:
             QMessageBox.information(self,'No SHS edit','Click Edit Frame in SHS first.')
-            return
+            return False
         path,project_id,animation,index=self._shs_edit
         if project_id!=self._active_project_id or animation!=self.anim.currentText() or index!=self.frame:
             QMessageBox.information(self,'Select original pose','Switch back to the original project, animation, and pose before reloading.')
-            return
+            return False
+        poses=self.model.animations.get(animation,[])
+        if not 0 <= index < len(poses):
+            QMessageBox.warning(self,'Original pose unavailable','The original saved pose no longer exists. Nothing was imported.')
+            return False
+        expected_id=getattr(self,'_shs_pose_id',None)
+        if expected_id is not None and self.model.pose_id(animation,index)!=expected_id:
+            QMessageBox.warning(self,'Original pose changed',
+                'The original frame was reordered or replaced. Nothing was imported into a different pose.')
+            return False
+        if (getattr(self,'_next_pose_capture_pending',False)
+                or getattr(self,'_slimer_pending_part',None) is not None
+                or getattr(self,'_slimer_pending_layer',None) is not None):
+            QMessageBox.information(self,'Unfinished Wizard edit',
+                'Place, apply, or cancel the unfinished Wizard edit before importing the SHS PNG.')
+            return False
         try:
-            with Image.open(path) as source:edited=source.convert('RGBA')
+            with Image.open(path) as source:
+                source.load()
+                if source.format!='PNG':
+                    raise ValueError('The edited file is not a PNG.')
+                edited=source.convert('RGBA').copy()
             if edited.size!=tuple(self.model.size):
                 QMessageBox.warning(self,'Canvas size mismatch',f'Edited PNG is {edited.size}; expected {self.model.size}. Keep the canvas size unchanged in SHS.')
-                return
+                return False
             self.preserve_pose_draft();self.remember()
             self.model.replace_frame_image(animation,index,edited)
             self.assets.addItem(self.model.parts[-1]['name'])
@@ -4029,7 +4053,10 @@ class Suite(QMainWindow):
             self.assets.setCurrentRow(len(self.model.parts)-1)
             self.refresh_timeline();self.refresh()
             self.status.setText(f'Reloaded SHS edit into pose {index+1} only. Main Undo can reverse it.')
-        except (OSError,ValueError) as exc:QMessageBox.warning(self,'Could not reload SHS edit',str(exc))
+            return True
+        except (OSError,ValueError,IndexError,KeyError) as exc:
+            QMessageBox.warning(self,'Could not reload SHS edit',str(exc))
+            return False
 
     def replace_current_frame_png(self):
         """Replace only the selected saved pose with an edited full-canvas PNG."""
