@@ -31,10 +31,26 @@ jobs:
           python -m pip install 'pytest>=8,<10' 'pytest-timeout>=2.3,<3'
       - name: Python compilation and integration boundary checks
         shell: pwsh
+        timeout-minutes: 18
+        env:
+          PYTHONUNBUFFERED: '1'
+          PYTHONFAULTHANDLER: '1'
         run: |
-          python -m compileall -q main.py studio shws_wizard tests
-          python -m pytest tests -q
-          if ($LASTEXITCODE -ne 0) { throw 'SHWS integration regression failed' }
+          python -m compileall -q main.py studio shws_wizard tests 2>&1 | Tee-Object -FilePath shws-compile.txt
+          if ($LASTEXITCODE -ne 0) { throw 'SHWS Python compilation failed' }
+          # -vv identifies the last test started if Windows/Qt blocks.
+          # pytest-timeout prints a stack dump and fails a hung test in 120 seconds.
+          python -u -m pytest tests -vv -ra --tb=short --durations=20 --timeout=120 --timeout-method=thread 2>&1 | Tee-Object -FilePath shws-integration-pytest.txt
+          if ($LASTEXITCODE -ne 0) { throw 'SHWS integration regression failed or a test timed out; see the uploaded integration log' }
+      - name: Upload integration diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: SHWS-Build197-Integration-Diagnostics
+          path: |
+            shws-compile.txt
+            shws-integration-pytest.txt
+          if-no-files-found: warn
       - name: Smoke-test both integrated tabs from source
         shell: pwsh
         timeout-minutes: 4
