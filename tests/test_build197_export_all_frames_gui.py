@@ -14,6 +14,9 @@ import shws_wizard.friendly_animator as wizard
 def test_export_all_frames_uses_custom_manifest_name(tmp_path, monkeypatch):
     app=QApplication.instance() or QApplication([])
     editor=wizard.Suite()
+    # CI has no person to answer the normal unsaved-creature close dialog.
+    # Skip that prompt for teardown only; production close behavior is unchanged.
+    monkeypatch.setattr(editor, 'confirm_unsaved_projects', lambda *_a, **_kw: True)
     editor.show(); app.processEvents()
     try:
         editor.model.import_part('old-project-name',Image.new('RGBA',(4,4),(42,53,64,255)))
@@ -40,6 +43,8 @@ def test_export_all_frames_uses_custom_manifest_name(tmp_path, monkeypatch):
 def test_export_all_frames_cancel_leaves_files_untouched(tmp_path, monkeypatch):
     app=QApplication.instance() or QApplication([])
     editor=wizard.Suite()
+    # Never leave a modal confirmation open when this GUI test cleans up.
+    monkeypatch.setattr(editor, 'confirm_unsaved_projects', lambda *_a, **_kw: True)
     try:
         monkeypatch.setattr(wizard.QFileDialog,'getSaveFileName',lambda *a: ('',''))
         editor.export_all_frames()
