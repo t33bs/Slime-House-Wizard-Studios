@@ -1,0 +1,6 @@
+{
+  "shws_wizard/friendly_animator.py": "96a8e4553dcb32e54f0fe865d8cc88b6c1e6aa4e56ec356e7193d0e5f01cb04d",
+  "shws_wizard/studio/gif_export.py": "c01f8e8b8ffd4f5a9d560494d93e281a63d83a924e5cef386bfc3381acadd86e",
+  "tests/test_build198_artwork_export_integrity.py": "036b8d938958e362ef0148fa20fa70a583430b49a8728849966fc44b32c92734",
+  "BUILD198_ARTWORK_EXPORT_FIX_README.md": "3063d0c14b78a184afc10eb6a9444367c1a300c3ae66dc3bddfdf810636576c3"
+}

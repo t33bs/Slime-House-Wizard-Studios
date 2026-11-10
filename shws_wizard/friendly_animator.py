@@ -4025,7 +4025,40 @@ class Suite(QMainWindow):
         self.preview_zoom=150 if step==0 else max(50,min(600,self.preview_zoom+step))
         self.refresh_preview()
 
+    def _prepare_artwork_export(self):
+        """Only export saved poses after safely flushing the owning live draft.
+
+        A Cleaner/Slimer edit can exist in the live canvas before its snapshot
+        is updated. Exporters read animations[*], never that live canvas. Never
+        silently export a stale pose or turn an unplaced NEXT pose into an
+        overwrite of the previous saved pose.
+        """
+        if getattr(self, '_slimer_pending_part', None) is not None:
+            self.status.setText('Apply Move or Cancel Unconfirmed Layer before exporting.')
+            return False
+        if getattr(self, '_next_pose_capture_pending', False):
+            self.status.setText('Place Frame or Save Current Pose before exporting: the next-pose artwork is not yet saved.')
+            return False
+        self.preserve_pose_draft()
+        if getattr(self, '_pose_draft_dirty', False):
+            self.status.setText('Export blocked: edited pixels could not be saved to their verified pose. Reselect that frame and save it first.')
+            return False
+        name = self.anim.currentText()
+        frames = self.model.animations.get(name, [])
+        index = self.frame
+        # If live pixels belong to a saved pose, the corresponding snapshot
+        # must match exactly, including transparent and disconnected pixels.
+        if 0 <= index < len(frames):
+            pose_id = self.model.pose_id(name, index)
+            if getattr(self, '_pose_live_id', None) == pose_id:
+                if self.model.snapshot() != frames[index]:
+                    self.status.setText('Export blocked: canvas pixels differ from the saved frame. Reselect and save the edited pose.')
+                    return False
+        return True
+
     def export_current_frame(self):
+        if not self._prepare_artwork_export():
+            return
         name=self.anim.currentText()
         poses=self.model.animations.get(name,[])
         pose=poses[self.frame] if 0<=self.frame<len(poses) else None
@@ -4036,6 +4069,8 @@ class Suite(QMainWindow):
 
     def export_all_frames(self):
         """Export PNGs under a chosen prefix, never an old project/reference title."""
+        if not self._prepare_artwork_export():
+            return
         filename,_=QFileDialog.getSaveFileName(
             self, 'Name exported frame set', 'creature_frames.json',
             'Animation frame manifest (*.json)')
@@ -4413,7 +4448,8 @@ class Suite(QMainWindow):
         return model.content_fingerprint()!=self._saved_fingerprints.get(project_id)
 
     def export_animated(self):
-        self.preserve_pose_draft()
+        if not self._prepare_artwork_export():
+            return
         filename,_=QFileDialog.getSaveFileName(
             self,'Choose animation export base filename (GIF + APNG)', 'creature.gif', 'GIF animation (*.gif)')
         if not filename:return
@@ -4642,10 +4678,8 @@ class Suite(QMainWindow):
                     self.status.setText(f'Opened {path} in a new project tab')
             except Exception as e:QMessageBox.warning(self,'Open failed',str(e))
     def export(self):
-        if getattr(self, '_slimer_pending_part', None) is not None:
-            self.status.setText('Apply Move or Cancel Unconfirmed Layer before exporting.')
+        if not self._prepare_artwork_export():
             return
-        self.preserve_pose_draft()
         filename,_=QFileDialog.getSaveFileName(
             self,'Choose sprite sheet filename','creature_sheet.png','PNG sprite sheet (*.png)')
         if filename:

@@ -10,22 +10,28 @@ def encode_gif(frames, durations, output):
         raise ValueError('GIF frames must have the same canvas size.')
     if any(not isinstance(d, (int, float)) or d <= 0 for d in durations):
         raise ValueError('GIF frame durations must be positive.')
-    # Build a shared palette from all opaque colors, avoiding per-frame palette drift.
+    # GIF supports only binary transparency. Treat EVERY nonzero-alpha pixel
+    # as visible, even detached wisps/particles with alpha 1..127. The PNG/APNG
+    # export remains the lossless RGBA representation.
+    # Build a shared palette without premultiplying colors onto black, which
+    # would darken low-alpha artist-authored pixels even further.
     w, h = frames[0].size
     sample = Image.new('RGB', (w, h * len(frames)), (0, 0, 0))
     for i, frame in enumerate(frames):
         background = Image.new('RGB', frame.size, (0, 0, 0))
-        background.paste(frame, mask=frame.getchannel('A'))
+        present = frame.getchannel('A').point(lambda a: 255 if a else 0)
+        background.paste(frame.convert('RGB'), mask=present)
         sample.paste(background, (0, i * h))
     palette_source = sample.quantize(colors=255, method=Image.Quantize.MEDIANCUT)
     palette = palette_source.getpalette()[:255 * 3] + [0, 0, 0]
     encoded = []
     for frame in frames:
         background = Image.new('RGB', frame.size, (0, 0, 0))
-        background.paste(frame, mask=frame.getchannel('A'))
+        present = frame.getchannel('A').point(lambda a: 255 if a else 0)
+        background.paste(frame.convert('RGB'), mask=present)
         indexed = background.quantize(palette=palette_source, dither=Image.Dither.NONE)
         indexed.putpalette(palette)
-        alpha = frame.getchannel('A').point(lambda a: 255 if a < 128 else 0)
+        alpha = frame.getchannel('A').point(lambda a: 255 if a == 0 else 0)
         indexed.paste(255, mask=alpha)
         indexed.info['transparency'] = 255
         encoded.append(indexed)
