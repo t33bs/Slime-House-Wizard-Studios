@@ -126,6 +126,18 @@ def test_wizard_models_same_logic_as_original():
             assert 'disposal=1, blend=0' in actual
             assert 'os.replace(temporary, output)' in actual
             assert "decoded.convert('RGBA').tobytes() != expected.tobytes()" in actual
+        elif p.name == 'gif_export.py':
+            # Build 1.9.8 intentionally replaces the GIF encoder to preserve
+            # EVERY nonzero-alpha artist pixel. Both baselines are pinned:
+            # no unrelated exporter changes are approved or silently ignored.
+            original_sha = 'e5236930990dc9fd49ce4bbb8dda2cd85ee841cc52f52cd6a68923ca84a9f825'
+            approved_sha = 'c01f8e8b8ffd4f5a9d560494d93e281a63d83a924e5cef386bfc3381acadd86e'
+            assert hashlib.sha256(expected.encode('utf8')).hexdigest() == original_sha, ( 
+                f'Unexpected baseline GIF exporter version: {p}'
+            )
+            assert hashlib.sha256(actual.encode('utf8')).hexdigest() == approved_sha, (
+                f'GIF exporter differs from reviewed Build 1.9.8 pixel-retention fix: {p}'
+            )
         else:
             assert actual==expected, f'Wizard model logic diverged: {p}'
 
